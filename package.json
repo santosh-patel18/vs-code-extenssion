@@ -1,0 +1,166 @@
+{
+  "name": "forge-coding-agent",
+  "displayName": "Forge (VS Code Coding Agent on TrueForge)",
+  "description": "Editor-native coding agent powered by TrueForge local agent harness",
+  "version": "0.1.0",
+  "publisher": "forge-team",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "forge.inlineEdit",
+        "title": "Forge: Inline Edit",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.openAgent",
+        "title": "Forge: Open Agent Panel",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.cancel",
+        "title": "Forge: Cancel Active Run",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.acceptHunk",
+        "title": "Forge: Accept Hunk",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.rejectHunk",
+        "title": "Forge: Reject Hunk",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.acceptAll",
+        "title": "Forge: Accept All Hunks",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.rejectAll",
+        "title": "Forge: Reject All Hunks",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.undoLast",
+        "title": "Forge: Undo Last Change",
+        "category": "Forge"
+      },
+      {
+        "command": "forge.undoRun",
+        "title": "Forge: Undo All Changes From This Run",
+        "category": "Forge"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "forge.inlineEdit",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "forge.cancel",
+        "key": "escape",
+        "when": "forgeRunActive"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "forge-sidebar",
+          "title": "Forge Agent",
+          "icon": "$(sparkle)"
+        }
+      ]
+    },
+    "views": {
+      "forge-sidebar": [
+        {
+          "type": "webview",
+          "id": "forge.agentView",
+          "name": "Forge Chat & Run Loop"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Forge",
+      "properties": {
+        "forge.trueforge.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:8790",
+          "description": "Base URL of TrueForge running in local mode"
+        },
+        "forge.agent.inline": {
+          "type": "string",
+          "default": "forge-inline",
+          "description": "Agent definition name for inline edits"
+        },
+        "forge.agent.primary": {
+          "type": "string",
+          "default": "forge-agent",
+          "description": "Primary agent definition name for agent mode"
+        },
+        "forge.agent.fallback": {
+          "type": "string",
+          "default": "forge-fallback",
+          "description": "Fallback agent definition name when primary model fails"
+        },
+        "forge.mcp.port": {
+          "type": "number",
+          "default": 8899,
+          "description": "Local port on 127.0.0.1 for the extension MCP tool server"
+        },
+        "forge.timeouts.firstEvent": {
+          "type": "number",
+          "default": 8,
+          "description": "Timeout in seconds waiting for the first model event before retry/fallback"
+        },
+        "forge.timeouts.idle": {
+          "type": "number",
+          "default": 60,
+          "description": "Idle timeout in seconds between stream events"
+        },
+        "forge.timeouts.command": {
+          "type": "number",
+          "default": 120,
+          "description": "Command execution timeout in seconds"
+        },
+        "forge.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save files after accepted hunks are applied"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node esbuild.js --production",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build": "node esbuild.js"
+  },
+  "devDependencies": {
+    "@types/diff": "^5.2.3",
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "diff": "^5.2.0"
+  }
+}

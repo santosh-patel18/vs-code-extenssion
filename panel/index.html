@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forge Agent Panel</title>
+  <style>
+    :root {
+      --bg: var(--vscode-editor-background);
+      --fg: var(--vscode-editor-foreground);
+      --border: var(--vscode-panel-border, #333);
+      --accent: var(--vscode-button-background, #007acc);
+      --accent-fg: var(--vscode-button-foreground, #fff);
+      --badge-bg: var(--vscode-badge-background, #444);
+      --input-bg: var(--vscode-input-background, #222);
+      --danger: #d9534f;
+      --success: #28a745;
+    }
+    body {
+      font-family: var(--vscode-font-family, sans-serif);
+      font-size: var(--vscode-font-size, 13px);
+      color: var(--fg);
+      background-color: var(--bg);
+      margin: 0;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .status-badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      background: var(--badge-bg);
+    }
+    .status-badge.running { background: #007acc; color: #fff; }
+    .status-badge.idle { background: #555; color: #ccc; }
+    
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      margin-bottom: 10px;
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .message {
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .message.user {
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .message.agent {
+      white-space: pre-wrap;
+    }
+    .tool-box {
+      font-family: monospace;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.05);
+      border-left: 3px solid #ffb86c;
+      padding: 4px 8px;
+      margin: 4px 0;
+      border-radius: 2px;
+    }
+
+    /* Context Ledger Accordion */
+    details.ledger {
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    summary {
+      cursor: pointer;
+      font-weight: 600;
+      outline: none;
+    }
+    .ledger-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      font-size: 11px;
+    }
+    .ledger-table th, .ledger-table td {
+      border: 1px solid var(--border);
+      padding: 4px;
+      text-align: left;
+    }
+    .ledger-table th { background: rgba(255, 255, 255, 0.05); }
+
+    .input-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      height: 70px;
+      background: var(--input-bg);
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px;
+      resize: none;
+      font-family: inherit;
+    }
+    .button-row {
+      display: flex;
+      gap: 6px;
+    }
+    button {
+      flex: 1;
+      padding: 6px;
+      background: var(--accent);
+      color: var(--accent-fg);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button.cancel-btn {
+      background: var(--danger);
+      flex: 0 0 80px;
+    }
+    button.revert-btn {
+      background: #e0a800;
+      color: #000;
+      display: none;
+    }
+    .mention-hint {
+      font-size: 11px;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h3>Forge Coding Agent</h3>
+    <span id="statusBadge" class="status-badge idle">Idle</span>
+  </div>
+
+  <details class="ledger" open>
+    <summary>📋 Context Ledger (<span id="ledgerCount">0</span> items)</summary>
+    <table class="ledger-table">
+      <thead>
+        <tr>
+          <th>File / Symbol</th>
+          <th>Source</th>
+          <th>Tokens</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody id="ledgerBody">
+        <tr><td colspan="4" style="text-align:center; opacity:0.6;">No items in context yet</td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <div id="chatContainer" class="chat-container">
+    <div class="message system" style="opacity: 0.7;">
+      Ready. Enter instructions below or use @file to attach files.
+    </div>
+  </div>
+
+  <div class="input-section">
+    <textarea id="promptInput" placeholder="Describe changes across files (e.g. Add flask config CLI command)..."></textarea>
+    <div class="mention-hint">Tip: Type @file to attach a file from workspace</div>
+    <div class="button-row">
+      <button id="sendBtn">Send Request</button>
+      <button id="cancelBtn" class="cancel-btn" disabled>Cancel</button>
+      <button id="revertBtn" class="revert-btn">Revert Run</button>
+    </div>
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    const chatContainer = document.getElementById('chatContainer');
+    const promptInput = document.getElementById('promptInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const revertBtn = document.getElementById('revertBtn');
+    const statusBadge = document.getElementById('statusBadge');
+    const ledgerBody = document.getElementById('ledgerBody');
+    const ledgerCount = document.getElementById('ledgerCount');
+
+    let currentAgentMsgElem = null;
+
+    // Send on click
+    sendBtn.addEventListener('click', () => {
+      const text = promptInput.value.trim();
+      if (!text) return;
+      promptInput.value = '';
+      appendMessage('user', text);
+      setRunning(true);
+      vscode.postMessage({ type: 'submit', text });
+    });
+
+    // Cancel
+    cancelBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'cancel' });
+      setRunning(false);
+    });
+
+    // Revert
+    revertBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'revert' });
+    });
+
+    // Detect @file mention
+    promptInput.addEventListener('input', (e) => {
+      if (promptInput.value.endsWith('@file')) {
+        vscode.postMessage({ type: 'quickPickFile' });
+      }
+    });
+
+    window.addEventListener('message', event => {
+      const msg = event.data;
+      switch (msg.type) {
+        case 'tokenDelta':
+          if (!currentAgentMsgElem) {
+            currentAgentMsgElem = appendMessage('agent', '');
+          }
+          currentAgentMsgElem.textContent += msg.text;
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+          break;
+
+        case 'toolEvent':
+          appendTool(msg.name, msg.details);
+          break;
+
+        case 'runDone':
+          setRunning(false);
+          currentAgentMsgElem = null;
+          if (msg.hasEdits) {
+            revertBtn.style.display = 'block';
+          }
+          break;
+
+        case 'updateLedger':
+          renderLedger(msg.entries);
+          break;
+
+        case 'insertFileMention':
+          promptInput.value = promptInput.value.replace(/@file$/, '') + `[file:${msg.path}]\n`;
+          promptInput.focus();
+          break;
+      }
+    });
+
+    function setRunning(running) {
+      if (running) {
+        statusBadge.textContent = 'Running';
+        statusBadge.className = 'status-badge running';
+        sendBtn.disabled = true;
+        cancelBtn.disabled = false;
+        currentAgentMsgElem = null;
+      } else {
+        statusBadge.textContent = 'Idle';
+        statusBadge.className = 'status-badge idle';
+        sendBtn.disabled = false;
+        cancelBtn.disabled = true;
+      }
+    }
+
+    function appendMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      div.textContent = (role === 'user' ? 'You: ' : 'Forge: ') + text;
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      return div;
+    }
+
+    function appendTool(name, details) {
+      const div = document.createElement('div');
+      div.className = 'tool-box';
+      div.textContent = `⚡ Tool: ${name} (${details || ''})`;
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function renderLedger(entries) {
+      ledgerCount.textContent = entries.length;
+      if (entries.length === 0) {
+        ledgerBody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.6;">No items in context yet</td></tr>';
+        return;
+      }
+      ledgerBody.innerHTML = '';
+      for (const item of entries) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><code>${item.pathOrSymbol}</code></td>
+          <td>${item.source}</td>
+          <td>~${item.estTokens}</td>
+          <td>${item.reason}</td>
+        `;
+        ledgerBody.appendChild(row);
+      }
+    }
+  </script>
+</body>
+</html>
