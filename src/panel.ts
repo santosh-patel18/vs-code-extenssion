@@ -141,27 +141,47 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
 
   private handleTrueForgeEvent(evt: any) {
     const data = evt.data || {};
+    const type = evt.type || data.type || '';
 
-    if (evt.type === 'model.message' || data.type === 'model.message') {
-      const text = data.content || (data.delta && data.delta.text) || '';
-      if (text) {
+    // Model message streaming (model.message.delta or model.message)
+    if (type.includes('model.message')) {
+      let chunk = '';
+      if (typeof data.content === 'string') {
+        chunk = data.content;
+      } else if (data.delta && typeof data.delta.text === 'string') {
+        chunk = data.delta.text;
+      } else if (Array.isArray(data.content) && data.content.length > 0) {
+        chunk = data.content.map((c: any) => c.text || '').join('');
+      }
+
+      if (chunk) {
         this.view?.webview.postMessage({
           type: 'tokenDelta',
-          text
+          text: chunk
         });
       }
-    } else if (evt.type === 'tool.call' || data.type === 'tool.call') {
+    }
+    // Tool call started
+    else if (type.includes('tool.call') || type === 'tool.execution_start') {
+      const name = data.tool_name || data.name || (data.tool && data.tool.name) || 'tool';
+      const args = data.args || data.arguments || '';
       this.view?.webview.postMessage({
         type: 'toolEvent',
-        name: data.tool_name || data.name || 'tool',
-        details: JSON.stringify(data.args || data.arguments || {})
+        name: `Calling ${name}`,
+        details: typeof args === 'string' ? args.slice(0, 80) : JSON.stringify(args).slice(0, 80)
       });
-    } else if (evt.type === 'tool.response' || data.type === 'tool.response') {
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: data.tool_name || 'response',
-        details: 'completed'
-      });
+    }
+    // Tool response completed
+    else if (type.includes('tool.response') || type === 'tool.execution_end') {
+      const name = data.tool_name || data.name || '';
+      if (name) {
+        const output = data.output || data.result || 'done';
+        this.view?.webview.postMessage({
+          type: 'toolEvent',
+          name: `${name}`,
+          details: typeof output === 'string' ? output.slice(0, 80) : 'done'
+        });
+      }
     }
   }
 
