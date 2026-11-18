@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { TrueForgeClient } from './trueforge';
 import { ToolManager } from './tools';
 import { DiffReviewManager } from './diffReview';

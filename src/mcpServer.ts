@@ -213,10 +213,10 @@ export class ForgeMcpServer {
         });
 
         return JSON.stringify({
-          status: 'approval_required',
+          status: 'done',
           proposal_id: proposal.id,
           hunks_count: proposal.hunks.length,
-          message: 'Changes staged in editor for user review. Awaiting per-hunk approval.'
+          message: 'Edit staged successfully. Task complete. Do not call propose_edit again.'
         });
       }
       case 'run_command': {
@@ -244,55 +244,55 @@ export class ForgeMcpServer {
     return [
       {
         name: 'get_repo_map',
-        description: 'Returns compact file tree with directory structure and symbols. Capped at 2,000 tokens.',
+        description: 'File tree of the workspace.',
         inputSchema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: 'Subdirectory path, or empty for workspace root' },
+            path: { type: 'string', description: 'Subdir or empty for root' },
             depth: { type: 'number', description: 'Max depth (default 3)' }
           }
         }
       },
       {
         name: 'search_workspace',
-        description: 'Searches workspace files for code matching a text or regex pattern.',
+        description: 'Search files for text/code pattern.',
         inputSchema: {
           type: 'object',
           properties: {
-            query: { type: 'string', description: 'Search term or pattern' },
-            glob: { type: 'string', description: 'Optional glob filter (e.g. **/*.py)' },
-            max_results: { type: 'number', description: 'Max matches to return (default 30)' }
+            query: { type: 'string', description: 'Search term' },
+            glob: { type: 'string', description: 'File filter e.g. **/*.py' },
+            max_results: { type: 'number', description: 'Max results (default 30)' }
           },
           required: ['query']
         }
       },
       {
         name: 'find_symbols',
-        description: 'Searches symbols (functions, classes) across the workspace.',
+        description: 'Find function/class definitions by name.',
         inputSchema: {
           type: 'object',
           properties: {
-            query: { type: 'string', description: 'Symbol name to search' }
+            query: { type: 'string', description: 'Symbol name' }
           },
           required: ['query']
         }
       },
       {
         name: 'read_file',
-        description: 'Reads numbered lines from a file in workspace. Always read before proposing edits.',
+        description: 'Read file lines. Call before proposing edits.',
         inputSchema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: 'Workspace-relative file path' },
-            start_line: { type: 'number', description: 'Starting line number (1-based)' },
-            end_line: { type: 'number', description: 'Ending line number' }
+            path: { type: 'string', description: 'Workspace-relative path' },
+            start_line: { type: 'number', description: 'Start line (1-based)' },
+            end_line: { type: 'number', description: 'End line' }
           },
           required: ['path']
         }
       },
       {
         name: 'note_context',
-        description: 'Agent declares which files it chose and why for its solution context. Recorded in Context Ledger.',
+        description: 'Record which files and why — shown in Context Ledger.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -313,37 +313,36 @@ export class ForgeMcpServer {
       },
       {
         name: 'propose_edit',
-        description: 'Proposes changes to a single file. Never writes directly to disk without user review and approval.',
+        description: 'Propose a file change for user review. Never writes to disk directly.',
         inputSchema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: 'Workspace-relative file path' },
+            path: { type: 'string', description: 'Workspace-relative path' },
             edits: {
               type: 'array',
-              description: 'Array of search/replace replacements',
               items: {
                 type: 'object',
                 properties: {
-                  old_text: { type: 'string', description: 'Exact existing code snippet to replace' },
-                  new_text: { type: 'string', description: 'New replacement code snippet' }
+                  old_text: { type: 'string', description: 'Exact text to replace' },
+                  new_text: { type: 'string', description: 'Replacement text' }
                 },
                 required: ['old_text', 'new_text']
               }
             },
-            content: { type: 'string', description: 'Full new content (for creating new files)' },
-            summary: { type: 'string', description: 'Summary of proposed change' }
+            content: { type: 'string', description: 'Full new file content' },
+            summary: { type: 'string', description: 'Change summary' }
           },
           required: ['path']
         }
       },
       {
         name: 'run_command',
-        description: 'Executes a command in workspace root (e.g. pytest). Requires user approval.',
+        description: 'Run a shell command (e.g. pytest). Requires user approval.',
         inputSchema: {
           type: 'object',
           properties: {
-            command: { type: 'string', description: 'Shell command string' },
-            timeout_s: { type: 'number', description: 'Timeout in seconds (default 120)' }
+            command: { type: 'string', description: 'Command to run' },
+            timeout_s: { type: 'number', description: 'Timeout seconds (default 120)' }
           },
           required: ['command']
         }
