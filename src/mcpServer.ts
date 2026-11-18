@@ -205,18 +205,61 @@ export class ForgeMcpServer {
 
         this.diffManager.registerProposal(proposal);
 
+        // --- Open VS Code diff editor (most visible UI) ---
+        const fullPath = this.toolManager.resolveSafePath(proposal.filePath);
+
+        // Compute the final proposed content
+        const originalContent = require('fs').existsSync(fullPath)
+          ? require('fs').readFileSync(fullPath, 'utf8') : '';
+        let proposedContent: string;
+        if (proposal.newFileContent !== undefined) {
+          proposedContent = proposal.newFileContent;
+        } else {
+          // Apply edits to original to get proposed
+          proposedContent = proposal.edits.reduce((text, edit) => {
+            if (!edit.old_text) return text;
+            const stripped = edit.old_text.replace(/^\d+\s*\|\s?/gm, '');
+            const toFind = text.includes(edit.old_text) ? edit.old_text : stripped;
+            return text.includes(toFind) ? text.replace(toFind, edit.new_text || '') : text;
+          }, originalContent);
+        }
+
+        // Write proposed content to temp file for diff view
+        const tempPath = fullPath + '.forge-proposed';
+        try {
+          require('fs').writeFileSync(tempPath, proposedContent, 'utf8');
+
+          // Open VS Code's built-in diff editor — full tab, impossible to miss
+          vscode.commands.executeCommand(
+            'vscode.diff',
+            vscode.Uri.file(fullPath),
+            vscode.Uri.file(tempPath),
+            `⚡ Forge Review: ${proposal.filePath} — Accept or Reject`
+          );
+        } catch { /* fall back to plain open */ }
+
+        // Show notification with Accept All / Reject All
         vscode.window.showInformationMessage(
-          `Forge: Edit proposed for ${proposal.filePath} (${proposal.hunks.length} hunks). Review in editor.`,
+          `Forge: ${proposal.hunks.length} change(s) ready in ${proposal.filePath}. Click Accept All to apply.`,
           'Accept All',
           'Reject All'
         ).then(choice => {
-          if (choice === 'Accept All') this.diffManager.acceptAll(proposal.id);
-          if (choice === 'Reject All') this.diffManager.rejectAll(proposal.id);
+          if (choice === 'Accept All') {
+            this.diffManager.acceptAll(proposal.id);
+          } else if (choice === 'Reject All') {
+            this.diffManager.rejectAll(proposal.id);
+          }
+          // Clean up temp file
+          try { require('fs').unlinkSync(tempPath); } catch { /* ignore */ }
         });
 
-        const fullPath = this.toolManager.resolveSafePath(proposal.filePath);
-        vscode.workspace.openTextDocument(vscode.Uri.file(fullPath)).then(doc => {
-          vscode.window.showTextDocument(doc);
+        this.onLedgerEntryEmitter.fire({
+          runId: '',
+          pathOrSymbol: proposal.filePath,
+          source: 'auto',
+          estTokens: Math.ceil(proposedContent.length / 4),
+          reason: summary || 'Agent proposed edit',
+          ts: Date.now()
         });
 
         return JSON.stringify({
