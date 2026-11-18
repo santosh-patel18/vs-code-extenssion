@@ -227,10 +227,15 @@ export class ToolManager {
     } else if (edits && edits.length > 0) {
       for (const edit of edits) {
         if (!edit.old_text) continue;
-        if (!modifiedText.includes(edit.old_text)) {
-          throw new Error(`FORGE_E_EDIT_NOMATCH: old_text not found in ${relPath}. Re-read the file before proposing edits.`);
+
+        // Strip line-number prefixes the agent may have copied from read_file output (e.g. "28 | ")
+        const stripped = edit.old_text.replace(/^\d+\s*\|\s?/gm, '');
+        const toFind = modifiedText.includes(edit.old_text) ? edit.old_text : stripped;
+
+        if (!modifiedText.includes(toFind)) {
+          throw new Error(`FORGE_E_EDIT_NOMATCH: old_text not found in ${relPath}. Re-read the file and copy exact lines without modification.`);
         }
-        modifiedText = modifiedText.replace(edit.old_text, edit.new_text || '');
+        modifiedText = modifiedText.replace(toFind, edit.new_text || '');
       }
     } else {
       throw new Error('propose_edit requires either edits array or newContent');

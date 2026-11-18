@@ -103,11 +103,11 @@ export async function activate(context: vscode.ExtensionContext) {
             const prompt = `File: ${filePath}\n` +
               (selectedText ? `Selected text to edit:\n\`\`\`\n${selectedText}\n\`\`\`\n\n` : `Full file context:\n\`\`\`\n${editor.document.getText()}\n\`\`\`\n\n`) +
               `Instruction: ${instruction}\n\n` +
-              `IMPORTANT: Call propose_edit tool with the exact old_text and replacement new_text. Do not output conversational text.`;
+              `IMPORTANT: Call propose_edit with the FULL modified file content in the content field. Do not output conversational text.`;
 
-            const sessionId = await trueforgeClient!.createSession(inlineAgentName);
-            await trueforgeClient!.sendTurn(sessionId, prompt, (evt) => {
-              // Handled by tool call in mcpServer
+            const fallbackAgentName = config.get<string>('agent.fallback', 'forge-fallback');
+            await trueforgeClient!.executeWithFallback(inlineAgentName, fallbackAgentName, prompt, (_evt) => {
+              // Tool calls handled by MCP server in mcpServer.ts
             });
           } catch (err: any) {
             vscode.window.showErrorMessage(`Inline edit error: ${err.message}`);

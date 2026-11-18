@@ -195,7 +195,14 @@ export class ForgeMcpServer {
         const newContent = args.content;
         const summary = args.summary;
 
-        const proposal = await this.toolManager.proposeEdit(filePath, edits, newContent, summary);
+        let proposal;
+        try {
+          proposal = await this.toolManager.proposeEdit(filePath, edits, newContent, summary);
+        } catch (editErr: any) {
+          vscode.window.showErrorMessage(`Forge: propose_edit failed — ${editErr.message}`);
+          return JSON.stringify({ status: 'error', message: editErr.message });
+        }
+
         this.diffManager.registerProposal(proposal);
 
         vscode.window.showInformationMessage(
