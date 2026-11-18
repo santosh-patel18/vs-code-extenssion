@@ -125,8 +125,8 @@
         },
         "forge.timeouts.firstEvent": {
           "type": "number",
-          "default": 8,
-          "description": "Timeout in seconds waiting for the first model event before retry/fallback"
+          "default": 15,
+          "description": "Timeout in seconds waiting for the first model event before switching to fallback agent"
         },
         "forge.timeouts.idle": {
           "type": "number",
