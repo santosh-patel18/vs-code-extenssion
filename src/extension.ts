@@ -34,7 +34,7 @@ export async function activate(context: vscode.ExtensionContext) {
   try {
     await mcpServer.start();
     // Register MCP server with TrueForge
-    await trueforgeClient.registerMcpServer(mcpPort, mcpServer.getBearerToken());
+    await trueforgeClient.registerMcpServer(mcpPort);
   } catch (err: any) {
     vscode.window.showErrorMessage(`Forge MCP server failed to start: ${err.message}`);
   }

@@ -108,27 +108,41 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
     }
 
     this.isRunning = true;
+    this.activeLedger = []; // reset ledger for new run
     vscode.commands.executeCommand('setContext', 'forgeRunActive', true);
 
     const config = vscode.workspace.getConfiguration('forge');
     const primaryAgent = config.get<string>('agent.primary', 'forge-agent');
     const fallbackAgent = config.get<string>('agent.fallback', 'forge-fallback');
 
-    // Context-engineering feature: automatically prepend budgeted repo map to first turn
-    const repoMap = await this.toolManager.getRepoMap('', 2);
-    const enrichedPrompt = `Project Workspace Overview:\n\`\`\`\n${repoMap}\n\`\`\`\n\nTask:\n${userInstruction}`;
+    // Context-engineering: prepend budgeted repo map to first turn
+    let repoMap = '';
+    try {
+      repoMap = await this.toolManager.getRepoMap('', 2);
+    } catch {
+      repoMap = '(could not build repo map)';
+    }
+
+    const enrichedPrompt =
+      `Project Workspace Overview:\n\`\`\`\n${repoMap}\n\`\`\`\n\n` +
+      `Task:\n${userInstruction}`;
+
+    // Post user message to panel immediately
+    this.view?.webview.postMessage({ type: 'runStart' });
 
     try {
       await this.trueforge.executeWithFallback(
         primaryAgent,
         fallbackAgent,
         enrichedPrompt,
-        (evt) => {
-          this.handleTrueForgeEvent(evt);
-        }
+        (evt) => { this.handleTrueForgeEvent(evt); }
       );
     } catch (err: any) {
       vscode.window.showErrorMessage(`Agent run failed: ${err.message}`);
+      this.view?.webview.postMessage({
+        type: 'agentError',
+        message: err.message
+      });
     } finally {
       this.isRunning = false;
       vscode.commands.executeCommand('setContext', 'forgeRunActive', false);
@@ -143,10 +157,11 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
     const data = evt.data || {};
     const type = evt.type || data.type || '';
 
-    // Model message streaming (model.message.delta or model.message)
-    if (type.includes('model.message')) {
+    // --- Token streaming ---
+    if (type === 'model.message.delta' || type === 'model.message') {
       let chunk = '';
-      if (typeof data.content === 'string') {
+      // Plain string content (confirmed TrueForge format)
+      if (typeof data.content === 'string' && data.content) {
         chunk = data.content;
       } else if (data.delta && typeof data.delta.text === 'string') {
         chunk = data.delta.text;
@@ -155,34 +170,58 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
       }
 
       if (chunk) {
-        this.view?.webview.postMessage({
-          type: 'tokenDelta',
-          text: chunk
-        });
+        this.view?.webview.postMessage({ type: 'tokenDelta', text: chunk });
       }
+      return;
     }
-    // Tool call started
-    else if (type.includes('tool.call') || type === 'tool.execution_start') {
+
+    // --- Tool call started ---
+    if (type === 'tool.call.start' || type === 'tool.execution_start' ||
+        (type.includes('tool') && type.includes('call'))) {
       const name = data.tool_name || data.name || (data.tool && data.tool.name) || 'tool';
-      const args = data.args || data.arguments || '';
+      const args = data.args || data.arguments || {};
+      const argStr = typeof args === 'string' ? args.slice(0, 100) : JSON.stringify(args).slice(0, 100);
       this.view?.webview.postMessage({
         type: 'toolEvent',
-        name: `Calling ${name}`,
-        details: typeof args === 'string' ? args.slice(0, 80) : JSON.stringify(args).slice(0, 80)
+        name: `⚡ ${name}`,
+        details: argStr,
+        phase: 'start'
       });
+      return;
     }
-    // Tool response completed
-    else if (type.includes('tool.response') || type === 'tool.execution_end') {
+
+    // --- Tool response ---
+    if (type === 'tool.call.end' || type === 'tool.execution_end' ||
+        (type.includes('tool') && type.includes('response'))) {
       const name = data.tool_name || data.name || '';
+      const output = data.output || data.result || '';
+      const preview = typeof output === 'string' ? output.slice(0, 100) : 'done';
       if (name) {
-        const output = data.output || data.result || 'done';
         this.view?.webview.postMessage({
           type: 'toolEvent',
-          name: `${name}`,
-          details: typeof output === 'string' ? output.slice(0, 80) : 'done'
+          name: `✓ ${name}`,
+          details: preview,
+          phase: 'end'
         });
       }
+      return;
     }
+
+    // --- Turn complete ---
+    if (type === 'turn.complete' || type === 'run.complete' || type === 'session.complete') {
+      this.view?.webview.postMessage({ type: 'turnComplete' });
+      return;
+    }
+
+    // --- Error events ---
+    if (type === 'error' || type === 'model.error') {
+      const msg = data.message || data.error || JSON.stringify(data);
+      this.view?.webview.postMessage({ type: 'agentError', message: msg });
+      return;
+    }
+
+    // Log unhandled events for debugging
+    console.log('[Forge] Unhandled TF event:', type, JSON.stringify(data).slice(0, 200));
   }
 
   public cancelRun() {

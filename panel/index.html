@@ -36,63 +36,54 @@
       padding-bottom: 6px;
       border-bottom: 1px solid var(--border);
     }
-    .header h3 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-    }
+    .header h3 { margin: 0; font-size: 14px; font-weight: 600; }
     .status-badge {
       font-size: 11px;
-      padding: 2px 6px;
+      padding: 2px 8px;
       border-radius: 10px;
       background: var(--badge-bg);
     }
-    .status-badge.running { background: #007acc; color: #fff; }
+    .status-badge.running { background: #007acc; color: #fff; animation: pulse 1.5s infinite; }
     .status-badge.idle { background: #555; color: #ccc; }
-    
+    .status-badge.error { background: var(--danger); color: #fff; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+
     .chat-container {
       flex: 1;
       overflow-y: auto;
       border: 1px solid var(--border);
       border-radius: 4px;
       padding: 8px;
-      margin-bottom: 10px;
-      background: rgba(0, 0, 0, 0.05);
-    }
-    .message {
       margin-bottom: 8px;
-      line-height: 1.4;
+      background: rgba(0,0,0,0.05);
+      min-height: 100px;
     }
-    .message.user {
-      font-weight: 600;
-      color: var(--accent);
-    }
-    .message.agent {
-      white-space: pre-wrap;
-    }
+    .message { margin-bottom: 8px; line-height: 1.4; }
+    .message.user { font-weight: 600; color: var(--accent); }
+    .message.agent { white-space: pre-wrap; }
+    .message.system { opacity: 0.65; font-style: italic; }
+    .message.error-msg { color: var(--danger); }
+
     .tool-box {
       font-family: monospace;
       font-size: 11px;
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255,255,255,0.05);
       border-left: 3px solid #ffb86c;
-      padding: 4px 8px;
-      margin: 4px 0;
+      padding: 3px 8px;
+      margin: 3px 0;
       border-radius: 2px;
+      word-break: break-all;
     }
+    .tool-box.end { border-left-color: var(--success); }
 
-    /* Context Ledger Accordion */
     details.ledger {
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       border: 1px solid var(--border);
       border-radius: 4px;
       padding: 4px 8px;
       font-size: 12px;
     }
-    summary {
-      cursor: pointer;
-      font-weight: 600;
-      outline: none;
-    }
+    summary { cursor: pointer; font-weight: 600; outline: none; user-select: none; }
     .ledger-table {
       width: 100%;
       border-collapse: collapse;
@@ -101,20 +92,16 @@
     }
     .ledger-table th, .ledger-table td {
       border: 1px solid var(--border);
-      padding: 4px;
+      padding: 3px 5px;
       text-align: left;
     }
-    .ledger-table th { background: rgba(255, 255, 255, 0.05); }
+    .ledger-table th { background: rgba(255,255,255,0.05); }
 
-    .input-section {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
+    .input-section { display: flex; flex-direction: column; gap: 6px; }
     textarea {
       width: 100%;
       box-sizing: border-box;
-      height: 70px;
+      height: 65px;
       background: var(--input-bg);
       color: var(--fg);
       border: 1px solid var(--border);
@@ -123,10 +110,7 @@
       resize: none;
       font-family: inherit;
     }
-    .button-row {
-      display: flex;
-      gap: 6px;
-    }
+    .button-row { display: flex; gap: 6px; }
     button {
       flex: 1;
       padding: 6px;
@@ -136,30 +120,18 @@
       border-radius: 4px;
       cursor: pointer;
       font-weight: 600;
+      font-size: 12px;
     }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    button.cancel-btn {
-      background: var(--danger);
-      flex: 0 0 80px;
-    }
-    button.revert-btn {
-      background: #e0a800;
-      color: #000;
-      display: none;
-    }
-    .mention-hint {
-      font-size: 11px;
-      opacity: 0.7;
-    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.cancel-btn { background: var(--danger); flex: 0 0 72px; }
+    button.revert-btn { background: #e0a800; color: #000; display: none; flex: 0 0 80px; }
+    .hint { font-size: 10px; opacity: 0.6; }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <h3>Forge Coding Agent</h3>
+    <h3>⚡ Forge Agent</h3>
     <span id="statusBadge" class="status-badge idle">Idle</span>
   </div>
 
@@ -167,32 +139,28 @@
     <summary>📋 Context Ledger (<span id="ledgerCount">0</span> items)</summary>
     <table class="ledger-table">
       <thead>
-        <tr>
-          <th>File / Symbol</th>
-          <th>Source</th>
-          <th>Tokens</th>
-          <th>Reason</th>
-        </tr>
+        <tr><th>File / Symbol</th><th>Source</th><th>~Tokens</th><th>Reason</th></tr>
       </thead>
       <tbody id="ledgerBody">
-        <tr><td colspan="4" style="text-align:center; opacity:0.6;">No items in context yet</td></tr>
+        <tr><td colspan="4" style="text-align:center;opacity:0.6;">No items yet</td></tr>
       </tbody>
     </table>
   </details>
 
   <div id="chatContainer" class="chat-container">
-    <div class="message system" style="opacity: 0.7;">
-      Ready. Enter instructions below or use @file to attach files.
+    <div class="message system">
+      Ready. Enter a task below — the agent will search the codebase, propose diffs, and you review per hunk.<br>
+      Tip: Type <code>@file</code> to attach a specific file to context.
     </div>
   </div>
 
   <div class="input-section">
-    <textarea id="promptInput" placeholder="Describe changes across files (e.g. Add flask config CLI command)..."></textarea>
-    <div class="mention-hint">Tip: Type @file to attach a file from workspace</div>
+    <textarea id="promptInput" placeholder="Describe changes e.g. 'Add flask config CLI command that prints config as JSON...'"></textarea>
+    <div class="hint">Tip: Type @file to attach a workspace file</div>
     <div class="button-row">
-      <button id="sendBtn">Send Request</button>
-      <button id="cancelBtn" class="cancel-btn" disabled>Cancel</button>
-      <button id="revertBtn" class="revert-btn">Revert Run</button>
+      <button id="sendBtn">▶ Send</button>
+      <button id="cancelBtn" class="cancel-btn" disabled>✕ Cancel</button>
+      <button id="revertBtn" class="revert-btn">↩ Revert</button>
     </div>
   </div>
 
@@ -209,29 +177,33 @@
 
     let currentAgentMsgElem = null;
 
-    // Send on click
     sendBtn.addEventListener('click', () => {
       const text = promptInput.value.trim();
       if (!text) return;
       promptInput.value = '';
-      appendMessage('user', text);
+      appendMessage('user', 'You: ' + text);
       setRunning(true);
       vscode.postMessage({ type: 'submit', text });
     });
 
-    // Cancel
+    promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        sendBtn.click();
+      }
+    });
+
     cancelBtn.addEventListener('click', () => {
       vscode.postMessage({ type: 'cancel' });
       setRunning(false);
+      appendMessage('system', '[Run cancelled by user]');
     });
 
-    // Revert
     revertBtn.addEventListener('click', () => {
       vscode.postMessage({ type: 'revert' });
+      revertBtn.style.display = 'none';
     });
 
-    // Detect @file mention
-    promptInput.addEventListener('input', (e) => {
+    promptInput.addEventListener('input', () => {
       if (promptInput.value.endsWith('@file')) {
         vscode.postMessage({ type: 'quickPickFile' });
       }
@@ -240,16 +212,28 @@
     window.addEventListener('message', event => {
       const msg = event.data;
       switch (msg.type) {
+
+        case 'runStart':
+          currentAgentMsgElem = null;
+          appendMessage('system', '🤖 Agent started — running tool loop...');
+          break;
+
         case 'tokenDelta':
           if (!currentAgentMsgElem) {
-            currentAgentMsgElem = appendMessage('agent', '');
+            currentAgentMsgElem = appendMessage('agent', 'Forge: ');
           }
           currentAgentMsgElem.textContent += msg.text;
           chatContainer.scrollTop = chatContainer.scrollHeight;
           break;
 
         case 'toolEvent':
-          appendTool(msg.name, msg.details);
+          appendTool(msg.name, msg.details, msg.phase);
+          currentAgentMsgElem = null; // reset so next text starts fresh
+          break;
+
+        case 'turnComplete':
+          appendMessage('system', '✅ Turn complete — reviewing results...');
+          currentAgentMsgElem = null;
           break;
 
         case 'runDone':
@@ -257,7 +241,18 @@
           currentAgentMsgElem = null;
           if (msg.hasEdits) {
             revertBtn.style.display = 'block';
+            appendMessage('system', '📝 Diffs ready — review Accept/Reject in the editor.');
+          } else {
+            appendMessage('system', '✓ Run complete.');
           }
+          break;
+
+        case 'agentError':
+          setRunning(false);
+          currentAgentMsgElem = null;
+          appendMessage('error-msg', '⚠ Error: ' + (msg.message || 'Unknown error'));
+          setBadge('Error', 'error');
+          setTimeout(() => setBadge('Idle', 'idle'), 3000);
           break;
 
         case 'updateLedger':
@@ -273,53 +268,60 @@
 
     function setRunning(running) {
       if (running) {
-        statusBadge.textContent = 'Running';
-        statusBadge.className = 'status-badge running';
+        setBadge('Running...', 'running');
         sendBtn.disabled = true;
         cancelBtn.disabled = false;
-        currentAgentMsgElem = null;
+        revertBtn.style.display = 'none';
       } else {
-        statusBadge.textContent = 'Idle';
-        statusBadge.className = 'status-badge idle';
+        setBadge('Idle', 'idle');
         sendBtn.disabled = false;
         cancelBtn.disabled = true;
       }
     }
 
+    function setBadge(text, cls) {
+      statusBadge.textContent = text;
+      statusBadge.className = 'status-badge ' + cls;
+    }
+
     function appendMessage(role, text) {
       const div = document.createElement('div');
-      div.className = `message ${role}`;
-      div.textContent = (role === 'user' ? 'You: ' : 'Forge: ') + text;
+      div.className = 'message ' + role;
+      div.textContent = text;
       chatContainer.appendChild(div);
       chatContainer.scrollTop = chatContainer.scrollHeight;
       return div;
     }
 
-    function appendTool(name, details) {
+    function appendTool(name, details, phase) {
       const div = document.createElement('div');
-      div.className = 'tool-box';
-      div.textContent = `⚡ Tool: ${name} (${details || ''})`;
+      div.className = 'tool-box' + (phase === 'end' ? ' end' : '');
+      div.textContent = name + (details ? ' — ' + details : '');
       chatContainer.appendChild(div);
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
     function renderLedger(entries) {
       ledgerCount.textContent = entries.length;
-      if (entries.length === 0) {
-        ledgerBody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.6;">No items in context yet</td></tr>';
+      if (!entries || entries.length === 0) {
+        ledgerBody.innerHTML = '<tr><td colspan="4" style="text-align:center;opacity:0.6;">No items yet</td></tr>';
         return;
       }
       ledgerBody.innerHTML = '';
       for (const item of entries) {
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td><code>${item.pathOrSymbol}</code></td>
-          <td>${item.source}</td>
+          <td><code>${escHtml(item.pathOrSymbol)}</code></td>
+          <td>${escHtml(item.source)}</td>
           <td>~${item.estTokens}</td>
-          <td>${item.reason}</td>
+          <td>${escHtml(item.reason)}</td>
         `;
         ledgerBody.appendChild(row);
       }
+    }
+
+    function escHtml(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
   </script>
 </body>

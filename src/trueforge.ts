@@ -37,11 +37,36 @@ export class TrueForgeClient {
   }
 
   /**
-   * Registers or updates the extension's MCP tool server in TrueForge
+   * Registers the extension's MCP tool server in TrueForge (no auth headers)
    */
-  public async registerMcpServer(port: number, bearerToken: string): Promise<void> {
+  public async registerMcpServer(port: number): Promise<void> {
     try {
-      await fetch(`${this.baseUrl}/api/v1/settings/mcp-servers`, {
+      // First try to delete existing entry to avoid 409
+      const listRes = await fetch(`${this.baseUrl}/api/v1/settings/mcp-servers`);
+      if (listRes.ok) {
+        const listJson = await listRes.json() as any;
+        const existing = (listJson.data || []).find((s: any) => s.name === 'forge-tools' || s.manifest?.name === 'forge-tools');
+        if (existing) {
+          // Update existing entry
+          await fetch(`${this.baseUrl}/api/v1/settings/mcp-servers/${existing.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              manifest: {
+                type: 'remote',
+                name: 'forge-tools',
+                url: `http://127.0.0.1:${port}/mcp`,
+                description: 'Forge VS Code extension editor capabilities'
+              }
+            })
+          });
+          console.log('[Forge] Updated forge-tools MCP registration in TrueForge.');
+          return;
+        }
+      }
+
+      // Register fresh
+      const res = await fetch(`${this.baseUrl}/api/v1/settings/mcp-servers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -49,18 +74,17 @@ export class TrueForgeClient {
             type: 'remote',
             name: 'forge-tools',
             url: `http://127.0.0.1:${port}/mcp`,
-            description: 'Forge VS Code extension editor capabilities',
-            auth: {
-              type: 'header',
-              headers: {
-                Authorization: `Bearer ${bearerToken}`
-              }
-            }
+            description: 'Forge VS Code extension editor capabilities'
           }
         })
       });
-    } catch (e) {
-      console.warn('Note: MCP auto-registration note:', e);
+      if (res.ok || res.status === 409) {
+        console.log('[Forge] forge-tools MCP server registered in TrueForge.');
+      } else {
+        console.warn('[Forge] MCP server registration returned:', res.status);
+      }
+    } catch (e: any) {
+      console.warn('[Forge] MCP auto-registration note:', e.message);
     }
   }
 
@@ -99,7 +123,7 @@ export class TrueForgeClient {
   }
 
   /**
-   * Sends a turn and processes the SSE stream with auto-fallback support
+   * Sends a turn and processes the SSE stream
    */
   public async sendTurn(
     sessionId: string,
@@ -108,7 +132,7 @@ export class TrueForgeClient {
     options?: { timeoutSec?: number }
   ): Promise<void> {
     this.currentAbortController = new AbortController();
-    const timeoutSec = options?.timeoutSec || 120;
+    const timeoutSec = options?.timeoutSec || 180;
 
     const timeoutTimer = setTimeout(() => {
       if (this.currentAbortController) {
@@ -161,9 +185,11 @@ export class TrueForgeClient {
 
           if (trimmed.startsWith('data: ')) {
             const dataStr = trimmed.slice(6);
+            if (dataStr === '[DONE]') continue;
             try {
               const parsed = JSON.parse(dataStr);
-              onEvent({ type: parsed.type || 'message', data: parsed });
+              const evtType = parsed.type || 'message';
+              onEvent({ type: evtType, data: parsed });
             } catch {
               // Ignore non-json lines
             }
@@ -177,7 +203,8 @@ export class TrueForgeClient {
   }
 
   /**
-   * Executes a turn with resilience: tries primary agent; if it fails/times out, switches to fallback
+   * Executes a turn with resilience: tries primary agent; if it fails, switches to fallback
+   * First-event timeout: 15 seconds (required by brief)
    */
   public async executeWithFallback(
     primaryAgent: string,
@@ -185,28 +212,58 @@ export class TrueForgeClient {
     userMessage: string,
     onEvent: EventCallback
   ): Promise<void> {
+    let usedFallback = false;
+
     try {
       const primarySessionId = await this.createSession(primaryAgent);
 
-      // Race with 8s first-event timer
-      let receivedFirstEvent = false;
+      // Race with 15s first-event timer
+      let firstEventReceived = false;
+      let primaryAborted = false;
+
+      const firstEventTimer = setTimeout(() => {
+        if (!firstEventReceived && this.currentAbortController) {
+          primaryAborted = true;
+          this.currentAbortController.abort('First event timeout — switching to fallback');
+        }
+      }, 15000);
+
       const wrappedOnEvent: EventCallback = (evt) => {
-        receivedFirstEvent = true;
+        if (!firstEventReceived) {
+          firstEventReceived = true;
+          clearTimeout(firstEventTimer);
+        }
         onEvent(evt);
       };
 
-      await this.sendTurn(primarySessionId, userMessage, wrappedOnEvent, { timeoutSec: 120 });
+      try {
+        await this.sendTurn(primarySessionId, userMessage, wrappedOnEvent, { timeoutSec: 180 });
+        clearTimeout(firstEventTimer);
+        return; // success
+      } catch (err: any) {
+        clearTimeout(firstEventTimer);
+        if (!primaryAborted && !err.message?.includes('timeout')) {
+          throw err; // real error, not timeout
+        }
+        // Fall through to fallback
+        console.warn('[Forge] Primary agent timed out or failed, switching to fallback.');
+      }
     } catch (err: any) {
-      console.warn('Primary agent turn failed:', err.message);
-
-      vscode.window.showWarningMessage(
-        UserMessages.FALLBACK_NOTICE(primaryAgent, fallbackAgent)
-      );
-
-      // Fallback in a fresh session
-      const fallbackSessionId = await this.createSession(fallbackAgent);
-      await this.sendTurn(fallbackSessionId, userMessage, onEvent, { timeoutSec: 120 });
+      if (!usedFallback) {
+        console.warn('[Forge] Primary agent session failed:', err.message);
+      } else {
+        throw err;
+      }
     }
+
+    // Fallback
+    usedFallback = true;
+    vscode.window.showWarningMessage(
+      UserMessages.FALLBACK_NOTICE(primaryAgent, fallbackAgent)
+    );
+
+    const fallbackSessionId = await this.createSession(fallbackAgent);
+    await this.sendTurn(fallbackSessionId, userMessage, onEvent, { timeoutSec: 180 });
   }
 
   /**
