@@ -175,6 +175,18 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    // --- Error events from TrueForge ---
+    if (type === 'error' || type === 'turn.error' || type === 'model.error' || data.error) {
+      const errMsg = typeof data.error === 'string'
+        ? data.error
+        : (data.error?.message || data.message || 'Model error occurred');
+      this.view?.webview.postMessage({
+        type: 'agentError',
+        message: errMsg
+      });
+      return;
+    }
+
     // --- Tool call started ---
     if (type === 'tool.call.start' || type === 'tool.execution_start' ||
         (type.includes('tool') && type.includes('call'))) {

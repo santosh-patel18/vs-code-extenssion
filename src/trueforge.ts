@@ -220,6 +220,7 @@ export class TrueForgeClient {
       // Race with 15s first-event timer
       let firstEventReceived = false;
       let primaryAborted = false;
+      let primaryFailed = false;
 
       const firstEventTimer = setTimeout(() => {
         if (!firstEventReceived && this.currentAbortController) {
@@ -229,6 +230,19 @@ export class TrueForgeClient {
       }, 15000);
 
       const wrappedOnEvent: EventCallback = (evt) => {
+        const data = evt.data || {};
+        const type = evt.type || data.type || '';
+
+        // Catch model/turn errors streamed from TrueForge
+        if (type === 'error' || type === 'turn.error' || type === 'model.error' || data.error) {
+          primaryFailed = true;
+          clearTimeout(firstEventTimer);
+          if (this.currentAbortController) {
+            this.currentAbortController.abort('Primary agent model error');
+          }
+          return;
+        }
+
         if (!firstEventReceived) {
           firstEventReceived = true;
           clearTimeout(firstEventTimer);
@@ -239,18 +253,18 @@ export class TrueForgeClient {
       try {
         await this.sendTurn(primarySessionId, userMessage, wrappedOnEvent, { timeoutSec: 180 });
         clearTimeout(firstEventTimer);
-        return; // success
+        if (primaryFailed || primaryAborted) {
+          // Fall through to fallback
+        } else {
+          return; // success
+        }
       } catch (err: any) {
         clearTimeout(firstEventTimer);
-        if (!primaryAborted && !err.message?.includes('timeout')) {
-          throw err; // real error, not timeout
-        }
-        // Fall through to fallback
-        console.warn('[Forge] Primary agent timed out or failed, switching to fallback.');
+        console.warn('[Forge] Primary agent failed or timed out:', err.message);
       }
     } catch (err: any) {
       if (!usedFallback) {
-        console.warn('[Forge] Primary agent session failed:', err.message);
+        console.warn('[Forge] Primary agent session creation failed:', err.message);
       } else {
         throw err;
       }
@@ -261,9 +275,18 @@ export class TrueForgeClient {
     vscode.window.showWarningMessage(
       UserMessages.FALLBACK_NOTICE(primaryAgent, fallbackAgent)
     );
+    onEvent({
+      type: 'model.message.delta',
+      data: { content: `\n\n⚠ [Resilience] Primary agent (${primaryAgent}) failed. Switched automatically to fallback agent (${fallbackAgent})...\n\n` }
+    });
 
-    const fallbackSessionId = await this.createSession(fallbackAgent);
-    await this.sendTurn(fallbackSessionId, userMessage, onEvent, { timeoutSec: 180 });
+    try {
+      const fallbackSessionId = await this.createSession(fallbackAgent);
+      await this.sendTurn(fallbackSessionId, userMessage, onEvent, { timeoutSec: 180 });
+    } catch (fallbackErr: any) {
+      vscode.window.showErrorMessage(`Fallback agent also failed: ${fallbackErr.message}`);
+      throw fallbackErr;
+    }
   }
 
   /**
