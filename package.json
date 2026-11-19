@@ -79,18 +79,6 @@
         "when": "forgeRunActive"
       }
     ],
-    "menus": {
-      "editor/title": [
-        {
-          "command": "forge.acceptAll",
-          "group": "navigation@1"
-        },
-        {
-          "command": "forge.rejectAll",
-          "group": "navigation@2"
-        }
-      ]
-    },
     "viewsContainers": {
       "activitybar": [
         {

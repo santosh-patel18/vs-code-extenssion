@@ -246,46 +246,27 @@ export class ForgeMcpServer {
           }, originalContent);
         }
 
-        // Write proposed content to temp file for diff view
-        const tempPath = fullPath + '.forge-proposed';
+        // Open the document directly and scroll to the first hunk so CodeLens is immediately visible
         try {
-          require('fs').writeFileSync(tempPath, proposedContent, 'utf8');
+          const doc = await vscode.workspace.openTextDocument(fullPath);
+          const editor = await vscode.window.showTextDocument(doc, { preview: false });
+          if (proposal.hunks.length > 0) {
+            const line = Math.max(0, proposal.hunks[0].oldStartLine - 1);
+            const pos = new vscode.Position(line, 0);
+            editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+          }
+        } catch { /* fall back */ }
 
-          // Open VS Code's built-in diff editor — full tab, impossible to miss
-          vscode.commands.executeCommand(
-            'vscode.diff',
-            vscode.Uri.file(fullPath),
-            vscode.Uri.file(tempPath),
-            `⚡ Forge Review: ${proposal.filePath} — Accept or Reject`
-          );
-        } catch { /* fall back to plain open */ }
-
-        // Show notification with Accept All / Reject a Hunk / Reject All
+        // Show clean notification with Accept All and Reject All
         vscode.window.showInformationMessage(
-          `Forge: ${proposal.hunks.length} change(s) ready in ${proposal.filePath}.`,
+          `Forge: ${proposal.hunks.length} change(s) ready in ${proposal.filePath}. Use [Accept Hunk] / [Reject Hunk] above the code or click below:`,
           'Accept All',
-          'Reject a Hunk',
           'Reject All'
-        ).then(async choice => {
+        ).then(choice => {
           if (choice === 'Accept All') {
             this.diffManager.acceptAll(proposal.id);
-            try { require('fs').unlinkSync(tempPath); } catch { /* ignore */ }
           } else if (choice === 'Reject All') {
             this.diffManager.rejectAll(proposal.id);
-            try { require('fs').unlinkSync(tempPath); } catch { /* ignore */ }
-          } else if (choice === 'Reject a Hunk') {
-            const items = proposal.hunks.map((h, idx) => ({
-              label: `$(x) Reject Hunk #${idx + 1} (Line ${h.oldStartLine})`,
-              description: h.lines.filter(l => l.startsWith('+') || l.startsWith('-')).slice(0, 2).join(' '),
-              hunkId: h.id
-            }));
-            const picked = await vscode.window.showQuickPick(items, {
-              placeHolder: 'Select the hunk you want to reject:'
-            });
-            if (picked) {
-              await this.diffManager.rejectHunk(proposal.id, picked.hunkId);
-              vscode.window.showInformationMessage(`Rejected Hunk #${items.indexOf(picked) + 1} in ${proposal.filePath}.`);
-            }
           }
         });
 

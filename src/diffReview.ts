@@ -58,15 +58,20 @@ export class DiffReviewManager implements vscode.CodeLensProvider {
     return Array.from(this.activeProposals.values()).filter(p => p.state === 'pending');
   }
 
+  private normalizeRelPath(p: string): string {
+    return p.replace(/^[/\\]+/, '').replace(/\\/g, '/').toLowerCase();
+  }
+
   /**
    * CodeLens provider: displays [Accept Hunk] [Reject Hunk] above each changed section
    */
   public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
     const lenses: vscode.CodeLens[] = [];
-    const relPath = this.toolManager.toRelativePath(document.fileName);
+    const docPath = this.normalizeRelPath(this.toolManager.toRelativePath(document.fileName));
 
     for (const proposal of this.activeProposals.values()) {
-      if (proposal.filePath !== relPath || proposal.state !== 'pending') continue;
+      const propPath = this.normalizeRelPath(proposal.filePath);
+      if (docPath !== propPath || proposal.state !== 'pending') continue;
 
       // Add "Accept All" & "Reject All" at the top of the file
       const topRange = new vscode.Range(0, 0, 0, 0);
@@ -77,7 +82,7 @@ export class DiffReviewManager implements vscode.CodeLensProvider {
           arguments: [proposal.id]
         }),
         new vscode.CodeLens(topRange, {
-          title: `$(x) Reject All Changes`,
+          title: `$(trash) Reject All Changes`,
           command: 'forge.rejectAll',
           arguments: [proposal.id]
         })
@@ -95,7 +100,7 @@ export class DiffReviewManager implements vscode.CodeLensProvider {
             arguments: [proposal.id, hunk.id]
           }),
           new vscode.CodeLens(range, {
-            title: `$(x) Reject Hunk`,
+            title: `$(trash) Reject Hunk`,
             command: 'forge.rejectHunk',
             arguments: [proposal.id, hunk.id]
           })
@@ -317,8 +322,10 @@ export class DiffReviewManager implements vscode.CodeLensProvider {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
 
-    const relPath = this.toolManager.toRelativePath(editor.document.fileName);
-    const proposal = Array.from(this.activeProposals.values()).find(p => p.filePath === relPath && p.state === 'pending');
+    const docPath = this.normalizeRelPath(this.toolManager.toRelativePath(editor.document.fileName));
+    const proposal = Array.from(this.activeProposals.values()).find(
+      p => this.normalizeRelPath(p.filePath) === docPath && p.state === 'pending'
+    );
 
     if (!proposal) {
       this.clearDecorations();
