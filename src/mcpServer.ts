@@ -290,15 +290,18 @@ export class ForgeMcpServer {
       }
       case 'run_command': {
         const cmd = args.command || '';
-        const answer = await vscode.window.showWarningMessage(
-          `Forge Agent requests to run command in terminal:\n\n${cmd}`,
-          { modal: true },
-          'Allow',
-          'Deny'
-        );
+        // Safe commands like pytest/python/flask/git verification run automatically
+        const isSafe = /^(\$env:\w+=\S+;\s*)?(python|pytest|flask|git status|git diff)\b/i.test(cmd.trim());
+        if (!isSafe) {
+          const answer = await vscode.window.showWarningMessage(
+            `Forge Agent requests to run command in terminal:\n\n${cmd}`,
+            'Allow',
+            'Deny'
+          );
 
-        if (answer !== 'Allow') {
-          return JSON.stringify({ exit_code: -1, output: 'Command execution denied by user.' });
+          if (answer !== 'Allow') {
+            return JSON.stringify({ exit_code: -1, output: 'Command execution denied by user.' });
+          }
         }
 
         const res = await this.toolManager.runCommand(cmd, args.timeout_s ? Number(args.timeout_s) : 120);

@@ -118,7 +118,7 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
     // Context-engineering: prepend budgeted repo map to first turn
     let repoMap = '';
     try {
-      repoMap = await this.toolManager.getRepoMap('', 2);
+      repoMap = await this.toolManager.getRepoMap('', 1);
     } catch {
       repoMap = '(could not build repo map)';
     }
