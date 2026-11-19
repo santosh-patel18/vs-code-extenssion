@@ -160,9 +160,10 @@ export class ForgeMcpServer {
       case 'read_file': {
         let filePath = args.path || args.file_path || args.filePath || args.file || '';
         try {
-          const resolved = this.toolManager.resolveSafePath(filePath);
           const fs = require('fs');
-          if (!filePath || (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory())) {
+          let resolved = '';
+          try { resolved = this.toolManager.resolveSafePath(filePath); } catch {}
+          if (!filePath || !resolved || !fs.existsSync(resolved) || fs.statSync(resolved).isDirectory()) {
             const activeDoc = vscode.window.activeTextEditor?.document;
             if (activeDoc && !activeDoc.isUntitled) {
               filePath = this.toolManager.toRelativePath(activeDoc.fileName);
@@ -203,9 +204,10 @@ export class ForgeMcpServer {
       case 'propose_edit': {
         let filePath = args.path || args.file_path || args.filePath || args.file || '';
         try {
-          const resolved = this.toolManager.resolveSafePath(filePath);
           const fs = require('fs');
-          if (!filePath || (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory())) {
+          let resolved = '';
+          try { resolved = this.toolManager.resolveSafePath(filePath); } catch {}
+          if (!filePath || !resolved || !fs.existsSync(resolved) || fs.statSync(resolved).isDirectory()) {
             const activeDoc = vscode.window.activeTextEditor?.document;
             if (activeDoc && !activeDoc.isUntitled) {
               filePath = this.toolManager.toRelativePath(activeDoc.fileName);

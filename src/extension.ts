@@ -103,7 +103,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const prompt = `File: ${filePath}\n` +
               (selectedText ? `Selected text to edit:\n\`\`\`\n${selectedText}\n\`\`\`\n\n` : `Full file context:\n\`\`\`\n${editor.document.getText()}\n\`\`\`\n\n`) +
               `Instruction: ${instruction}\n\n` +
-              `IMPORTANT: Call propose_edit with the FULL modified file content in the content field. Do not output conversational text.`;
+              `IMPORTANT: Call propose_edit with path='${filePath}'. Either provide the edits array with exact old_text and new_text for get_debug_flag, or the modified content in content field. Do not output conversational text.`;
 
             const fallbackAgentName = config.get<string>('agent.fallback', 'forge-fallback');
             await trueforgeClient!.executeWithFallback(inlineAgentName, fallbackAgentName, prompt, (_evt) => {

@@ -32,9 +32,11 @@ export class ToolManager {
    * Safe path resolution ensuring no directory traversal outside workspace
    */
   public resolveSafePath(userPath: string): string {
-    const trimmed = userPath.trim().replace(/^[\/\\]+/, '');
+    const trimmed = (userPath || '').trim().replace(/^[\/\\]+/, '');
     const resolved = path.normalize(path.resolve(this.workspaceRoot, trimmed));
-    if (!resolved.startsWith(this.workspaceRoot)) {
+    const normRoot = path.normalize(this.workspaceRoot).toLowerCase();
+    const normResolved = resolved.toLowerCase();
+    if (!normResolved.startsWith(normRoot)) {
       throw new Error(`FORGE_E_PATH_DENIED: Path escapes workspace: ${userPath}`);
     }
     return resolved;
@@ -179,7 +181,13 @@ export class ToolManager {
    * Numbered lines. Capped at 250 lines or 12 KB.
    */
   public async readFile(userPath: string, startLine?: number, endLine?: number): Promise<string> {
-    const fullPath = this.resolveSafePath(userPath);
+    let fullPath = this.resolveSafePath(userPath);
+    if (!fs.existsSync(fullPath)) {
+      const activeDoc = vscode.window.activeTextEditor?.document;
+      if (activeDoc && path.basename(activeDoc.fileName).toLowerCase() === path.basename(userPath).toLowerCase()) {
+        fullPath = activeDoc.fileName;
+      }
+    }
     if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
       throw new Error(`FORGE_E_PATH_IS_DIR: "${this.toRelativePath(fullPath)}" is a directory. Please specify a file path.`);
     }
@@ -219,7 +227,14 @@ export class ToolManager {
     newContent?: string,
     summary?: string
   ): Promise<Proposal> {
-    const fullPath = this.resolveSafePath(userPath);
+    let fullPath = this.resolveSafePath(userPath);
+    if (!fs.existsSync(fullPath)) {
+      const activeDoc = vscode.window.activeTextEditor?.document;
+      if (activeDoc && path.basename(activeDoc.fileName).toLowerCase() === path.basename(userPath).toLowerCase()) {
+        fullPath = activeDoc.fileName;
+        userPath = this.toRelativePath(fullPath);
+      }
+    }
     const relPath = this.toRelativePath(fullPath);
 
     // Guard: reject directory paths (EISDIR)
