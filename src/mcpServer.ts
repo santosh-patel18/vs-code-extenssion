@@ -284,8 +284,9 @@ export class ForgeMcpServer {
         return JSON.stringify({
           status: 'done',
           proposal_id: proposal.id,
+          file: proposal.filePath,
           hunks_count: proposal.hunks.length,
-          message: 'Edit staged successfully. Task complete. Do not call propose_edit again.'
+          message: `Edit staged successfully for ${proposal.filePath}. Proceed to the next file or verification step.`
         });
       }
       case 'run_command': {
