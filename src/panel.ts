@@ -176,10 +176,10 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
     }
 
     // --- Error events from TrueForge ---
-    if (type === 'error' || type === 'turn.error' || type === 'model.error' || data.error) {
+    if (type === 'error' || type === 'turn.error' || type === 'model.error' || data.error || data.state?.status === 'error') {
       const errMsg = typeof data.error === 'string'
         ? data.error
-        : (data.error?.message || data.message || 'Model error occurred');
+        : (data.state?.message || data.error?.message || data.message || 'Model error occurred');
       this.view?.webview.postMessage({
         type: 'agentError',
         message: errMsg

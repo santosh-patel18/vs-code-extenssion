@@ -188,9 +188,16 @@ export class TrueForgeClient {
             if (dataStr === '[DONE]') continue;
             try {
               const parsed = JSON.parse(dataStr);
+              if (parsed.state?.status === 'error' || (parsed.type === 'turn.done' && parsed.state?.status === 'error')) {
+                const errMsg = parsed.state?.message || 'Model error occurred during turn';
+                throw new ForgeError(ErrorClass.MODEL_FAIL, 'FORGE_E_TURN_FAILED', errMsg);
+              }
               const evtType = parsed.type || 'message';
               onEvent({ type: evtType, data: parsed });
-            } catch {
+            } catch (parseErr: any) {
+              if (parseErr instanceof ForgeError) {
+                throw parseErr;
+              }
               // Ignore non-json lines
             }
           }
@@ -234,7 +241,7 @@ export class TrueForgeClient {
         const type = evt.type || data.type || '';
 
         // Catch model/turn errors streamed from TrueForge
-        if (type === 'error' || type === 'turn.error' || type === 'model.error' || data.error) {
+        if (type === 'error' || type === 'turn.error' || type === 'model.error' || data.error || data.state?.status === 'error') {
           primaryFailed = true;
           clearTimeout(firstEventTimer);
           if (this.currentAbortController) {
