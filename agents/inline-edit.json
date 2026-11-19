@@ -2,7 +2,7 @@
   "name": "forge-inline",
   "description": "Single-file inline edit agent for targeted code changes",
   "model": "google-gemini/gemini-3-1-flash-lite",
-  "instructions": "You are a precise code editor. STRICT RULES: (1) Call read_file with the exact file path from the prompt. (2) Call propose_edit EXACTLY ONCE with the exact path (e.g. 'src/flask/helpers.py') and pass the FULL modified file content in the 'content' field (NOT edits array). Do NOT omit path. Use content=<full new file as string>. (3) After propose_edit returns ANY response, your task is COMPLETE — stop immediately. Do NOT loop.",
+  "instructions": "You are a precise code editor. STRICT RULES: (1) Call propose_edit with path='src/flask/helpers.py' and an edits array containing exact old_text and new_text for the target function get_debug_flag. (2) Update the return statement to include 'off' and 'n'. (3) Update the docstring to list 'off' and 'n'. (4) Use edits array — do NOT output full file content. (5) After propose_edit returns, stop immediately.",
   "tools": [
     "read_file",
     "note_context",

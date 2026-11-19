@@ -139,8 +139,10 @@ export class DiffReviewManager implements vscode.CodeLensProvider {
   /**
    * Accepts all remaining undecided hunks
    */
-  public async acceptAll(proposalId: string): Promise<void> {
-    const proposal = this.activeProposals.get(proposalId);
+  public async acceptAll(proposalId?: string): Promise<void> {
+    const proposal = proposalId
+      ? this.activeProposals.get(proposalId)
+      : Array.from(this.activeProposals.values()).find(p => p.state === 'pending');
     if (!proposal) return;
 
     for (const hunk of proposal.hunks) {
@@ -155,8 +157,10 @@ export class DiffReviewManager implements vscode.CodeLensProvider {
   /**
    * Rejects all hunks
    */
-  public async rejectAll(proposalId: string): Promise<void> {
-    const proposal = this.activeProposals.get(proposalId);
+  public async rejectAll(proposalId?: string): Promise<void> {
+    const proposal = proposalId
+      ? this.activeProposals.get(proposalId)
+      : Array.from(this.activeProposals.values()).find(p => p.state === 'pending');
     if (!proposal) return;
 
     for (const hunk of proposal.hunks) {

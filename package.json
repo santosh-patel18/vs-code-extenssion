@@ -45,12 +45,14 @@
       },
       {
         "command": "forge.acceptAll",
-        "title": "Forge: Accept All Hunks",
+        "title": "Accept All Hunks",
+        "icon": "$(check)",
         "category": "Forge"
       },
       {
         "command": "forge.rejectAll",
-        "title": "Forge: Reject All Hunks",
+        "title": "Reject All Hunks",
+        "icon": "$(close)",
         "category": "Forge"
       },
       {
@@ -77,6 +79,18 @@
         "when": "forgeRunActive"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "forge.acceptAll",
+          "group": "navigation@1"
+        },
+        {
+          "command": "forge.rejectAll",
+          "group": "navigation@2"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
