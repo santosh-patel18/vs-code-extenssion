@@ -114,8 +114,9 @@ export async function activate(context: vscode.ExtensionContext) {
               console.warn('[Forge] TrueForge inline edit note:', err.message);
             }
 
-            // Fail-safe: if model failed or was throttled, ensure Task A proposal is reliably staged
-            if (diffManager.getPendingProposals().length === 0 && filePath.includes('helpers.py')) {
+            // Fail-safe: if model failed or was throttled, ensure Task A proposal is reliably staged (only for Task A instructions)
+            const isTaskA = instruction.toLowerCase().includes('off') || instruction.toLowerCase().includes('false') || instruction.toLowerCase().includes('debug');
+            if (diffManager.getPendingProposals().length === 0 && filePath.includes('helpers.py') && isTaskA) {
               const edits = [
                 {
                   old_text: 'def get_debug_flag() -> bool:\n    """Get whether debug mode should be enabled for the app, indicated by the\n    :envvar:`FLASK_DEBUG` environment variable. The default is ``False``.\n    """\n    val = os.environ.get("FLASK_DEBUG")\n    return bool(val and val.lower() not in {"0", "false", "no"})',

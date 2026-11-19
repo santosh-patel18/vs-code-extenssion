@@ -132,10 +132,8 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
 
     // Task B deterministic live pipeline
     if (userInstruction.toLowerCase().includes('config')) {
-      // Register session in TrueForge in background
-      this.trueforge.createSession(primaryAgent)
-        .then(sId => this.trueforge.sendTurn(sId, userInstruction, () => {}))
-        .catch(() => {});
+      // Register session in TrueForge in background (create only, no agent loop)
+      this.trueforge.createSession(primaryAgent).catch(() => {});
 
       const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 

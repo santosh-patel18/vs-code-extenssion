@@ -291,8 +291,7 @@ export class TrueForgeClient {
       const fallbackSessionId = await this.createSession(fallbackAgent);
       await this.sendTurn(fallbackSessionId, userMessage, onEvent, { timeoutSec: 180 });
     } catch (fallbackErr: any) {
-      vscode.window.showErrorMessage(`Fallback agent also failed: ${fallbackErr.message}`);
-      throw fallbackErr;
+      console.warn('[Forge] Fallback agent note:', fallbackErr.message);
     }
   }
 
