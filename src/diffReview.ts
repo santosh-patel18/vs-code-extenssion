@@ -230,30 +230,50 @@ export class DiffReviewManager implements vscode.CodeLensProvider {
     const wsEdit = new vscode.WorkspaceEdit();
 
     if (proposal.newFileContent !== undefined) {
-      // New file or whole-content replacement
       if (!fs.existsSync(fullPath)) {
         wsEdit.createFile(uri, { overwrite: true });
         wsEdit.insert(uri, new vscode.Position(0, 0), proposal.newFileContent);
       } else {
-        const fullRange = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(999999, 0));
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const fullRange = new vscode.Range(new vscode.Position(0, 0), doc.lineAt(doc.lineCount - 1).range.end);
         wsEdit.replace(uri, fullRange, proposal.newFileContent);
       }
     } else {
-      // Apply search/replace edits
+      // Apply search/replace edits with robust newline handling
       for (const edit of proposal.edits) {
         if (!edit.old_text) continue;
         const currentDoc = await vscode.workspace.openTextDocument(uri);
         const text = currentDoc.getText();
-        const offset = text.indexOf(edit.old_text);
+        let offset = text.indexOf(edit.old_text);
+        let matchLen = edit.old_text.length;
+
+        if (offset === -1) {
+          const normText = text.replace(/\r\n/g, '\n');
+          const normOld = edit.old_text.replace(/\r\n/g, '\n');
+          const normIdx = normText.indexOf(normOld);
+          if (normIdx !== -1) {
+            const pos = currentDoc.positionAt(normIdx);
+            offset = currentDoc.offsetAt(pos);
+            matchLen = currentDoc.offsetAt(currentDoc.positionAt(normIdx + normOld.length)) - offset;
+          }
+        }
+
         if (offset !== -1) {
           const startPos = currentDoc.positionAt(offset);
-          const endPos = currentDoc.positionAt(offset + edit.old_text.length);
+          const endPos = currentDoc.positionAt(offset + matchLen);
           wsEdit.replace(uri, new vscode.Range(startPos, endPos), edit.new_text || '');
         }
       }
     }
 
-    const applied = await vscode.workspace.applyEdit(wsEdit);
+    let applied = await vscode.workspace.applyEdit(wsEdit);
+    // Disk fallback to guarantee edit is never dropped
+    if (!applied && proposal.newFileContent !== undefined) {
+      try {
+        fs.writeFileSync(fullPath, proposal.newFileContent, 'utf8');
+        applied = true;
+      } catch { /* ignore */ }
+    }
     if (applied) {
       proposal.state = acceptedHunks.length === proposal.hunks.length ? 'applied' : 'partially_applied';
       const doc = await vscode.workspace.openTextDocument(uri);

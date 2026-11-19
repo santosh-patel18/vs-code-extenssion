@@ -291,7 +291,7 @@ export class ToolManager {
       filePath: relPath,
       baseHash: this.hashString(originalText),
       edits: edits || [],
-      newFileContent: newContent,
+      newFileContent: modifiedText,
       summary: summary || `Edit ${relPath}`,
       hunks,
       state: 'pending'
