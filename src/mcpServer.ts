@@ -158,7 +158,18 @@ export class ForgeMcpServer {
         return await this.toolManager.findSymbols(query);
       }
       case 'read_file': {
-        const filePath = args.path || '';
+        let filePath = args.path || args.file_path || args.filePath || args.file || '';
+        try {
+          const resolved = this.toolManager.resolveSafePath(filePath);
+          const fs = require('fs');
+          if (!filePath || (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory())) {
+            const activeDoc = vscode.window.activeTextEditor?.document;
+            if (activeDoc && !activeDoc.isUntitled) {
+              filePath = this.toolManager.toRelativePath(activeDoc.fileName);
+            }
+          }
+        } catch { /* ignore */ }
+
         const start = args.start_line ? Number(args.start_line) : undefined;
         const end = args.end_line ? Number(args.end_line) : undefined;
         const result = await this.toolManager.readFile(filePath, start, end);
@@ -190,7 +201,18 @@ export class ForgeMcpServer {
         return this.toolManager.noteContext(items);
       }
       case 'propose_edit': {
-        const filePath = args.path || '';
+        let filePath = args.path || args.file_path || args.filePath || args.file || '';
+        try {
+          const resolved = this.toolManager.resolveSafePath(filePath);
+          const fs = require('fs');
+          if (!filePath || (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory())) {
+            const activeDoc = vscode.window.activeTextEditor?.document;
+            if (activeDoc && !activeDoc.isUntitled) {
+              filePath = this.toolManager.toRelativePath(activeDoc.fileName);
+            }
+          }
+        } catch { /* ignore */ }
+
         const edits = args.edits;
         const newContent = args.content;
         const summary = args.summary;

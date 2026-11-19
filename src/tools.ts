@@ -180,6 +180,9 @@ export class ToolManager {
    */
   public async readFile(userPath: string, startLine?: number, endLine?: number): Promise<string> {
     const fullPath = this.resolveSafePath(userPath);
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
+      throw new Error(`FORGE_E_PATH_IS_DIR: "${this.toRelativePath(fullPath)}" is a directory. Please specify a file path.`);
+    }
     const content = await this.readDocumentContent(fullPath);
     const allLines = content.split(/\r?\n/);
     const totalLines = allLines.length;
@@ -218,6 +221,12 @@ export class ToolManager {
   ): Promise<Proposal> {
     const fullPath = this.resolveSafePath(userPath);
     const relPath = this.toRelativePath(fullPath);
+
+    // Guard: reject directory paths (EISDIR)
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
+      throw new Error(`FORGE_E_PATH_IS_DIR: "${relPath}" is a directory, not a file. Pass the full file path including filename.`);
+    }
+
     const originalText = fs.existsSync(fullPath) ? await this.readDocumentContent(fullPath) : '';
 
     let modifiedText = originalText;

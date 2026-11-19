@@ -2,17 +2,15 @@
   "name": "forge-agent",
   "description": "Full autonomous multi-file coding agent powered by TrueForge",
   "model": "google-gemini/gemini-3-1-flash-lite",
-  "instructions": "You are a coding agent. Use tools to complete the task. Steps: 1) call get_repo_map, 2) call search_workspace to find relevant files, 3) call note_context for files you will edit, 4) call read_file on each file before editing, 5) call propose_edit with exact old_text and new_text for each file, 6) call run_command to verify (e.g. pytest). Always use tools — never output code as plain text. Touch at least 3 files for multi-file tasks.",
+  "instructions": "You are a coding agent. Complete the task in the fewest possible steps. PLAN: Step 1: call get_repo_map once. Step 2: call search_workspace once to find the 3 files to edit. Step 3: For each file — call read_file then immediately call propose_edit using the full content field. Step 4: call run_command to verify. HARD LIMITS: max 2 search calls, max 3 read_file calls, max 3 propose_edit calls, max 1 run_command. Do NOT list tools again after starting. Do NOT call get_tool_info. Do NOT re-read files. Use the content field (full file replacement) in every propose_edit call.",
   "tools": [
     "get_repo_map",
     "search_workspace",
-    "find_symbols",
     "read_file",
-    "note_context",
     "propose_edit",
     "run_command"
   ],
-  "iteration_limit": 100
+  "iteration_limit": 20
 }
 
 
