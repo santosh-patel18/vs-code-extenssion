@@ -260,19 +260,33 @@ export class ForgeMcpServer {
           );
         } catch { /* fall back to plain open */ }
 
-        // Show notification with Accept All / Reject All
+        // Show notification with Accept All / Reject a Hunk / Reject All
         vscode.window.showInformationMessage(
-          `Forge: ${proposal.hunks.length} change(s) ready in ${proposal.filePath}. Click Accept All to apply.`,
+          `Forge: ${proposal.hunks.length} change(s) ready in ${proposal.filePath}.`,
           'Accept All',
+          'Reject a Hunk',
           'Reject All'
-        ).then(choice => {
+        ).then(async choice => {
           if (choice === 'Accept All') {
             this.diffManager.acceptAll(proposal.id);
+            try { require('fs').unlinkSync(tempPath); } catch { /* ignore */ }
           } else if (choice === 'Reject All') {
             this.diffManager.rejectAll(proposal.id);
+            try { require('fs').unlinkSync(tempPath); } catch { /* ignore */ }
+          } else if (choice === 'Reject a Hunk') {
+            const items = proposal.hunks.map((h, idx) => ({
+              label: `$(x) Reject Hunk #${idx + 1} (Line ${h.oldStartLine})`,
+              description: h.lines.filter(l => l.startsWith('+') || l.startsWith('-')).slice(0, 2).join(' '),
+              hunkId: h.id
+            }));
+            const picked = await vscode.window.showQuickPick(items, {
+              placeHolder: 'Select the hunk you want to reject:'
+            });
+            if (picked) {
+              await this.diffManager.rejectHunk(proposal.id, picked.hunkId);
+              vscode.window.showInformationMessage(`Rejected Hunk #${items.indexOf(picked) + 1} in ${proposal.filePath}.`);
+            }
           }
-          // Clean up temp file
-          try { require('fs').unlinkSync(tempPath); } catch { /* ignore */ }
         });
 
         this.onLedgerEntryEmitter.fire({
