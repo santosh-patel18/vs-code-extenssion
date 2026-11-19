@@ -234,18 +234,49 @@ export class ToolManager {
     if (newContent !== undefined) {
       modifiedText = newContent;
     } else if (edits && edits.length > 0) {
+      const isCrlf = originalText.includes('\r\n');
+      let normalizedMod = modifiedText.replace(/\r\n/g, '\n');
+
       for (const edit of edits) {
         if (!edit.old_text) continue;
 
         // Strip line-number prefixes the agent may have copied from read_file output (e.g. "28 | ")
         const stripped = edit.old_text.replace(/^\d+\s*\|\s?/gm, '');
-        const toFind = modifiedText.includes(edit.old_text) ? edit.old_text : stripped;
+        const normOld = stripped.replace(/\r\n/g, '\n');
+        const normNew = (edit.new_text || '').replace(/\r\n/g, '\n');
 
-        if (!modifiedText.includes(toFind)) {
-          throw new Error(`FORGE_E_EDIT_NOMATCH: old_text not found in ${relPath}. Re-read the file and copy exact lines without modification.`);
+        if (normalizedMod.includes(normOld)) {
+          normalizedMod = normalizedMod.replace(normOld, normNew);
+        } else {
+          // Robust line-by-line whitespace-trimmed match for Windows/indentation variations
+          const oldLines = normOld.trim().split('\n').map(l => l.trim()).filter(Boolean);
+          const modLines = normalizedMod.split('\n');
+          let matchStart = -1;
+
+          for (let i = 0; i <= modLines.length - oldLines.length; i++) {
+            let allMatch = true;
+            for (let j = 0; j < oldLines.length; j++) {
+              if (modLines[i + j].trim() !== oldLines[j]) {
+                allMatch = false;
+                break;
+              }
+            }
+            if (allMatch) {
+              matchStart = i;
+              break;
+            }
+          }
+
+          if (matchStart !== -1) {
+            modLines.splice(matchStart, oldLines.length, normNew);
+            normalizedMod = modLines.join('\n');
+          } else {
+            throw new Error(`FORGE_E_EDIT_NOMATCH: old_text not found in ${relPath}. Re-read the file and copy exact lines without modification.`);
+          }
         }
-        modifiedText = modifiedText.replace(toFind, edit.new_text || '');
       }
+
+      modifiedText = isCrlf ? normalizedMod.replace(/\n/g, '\r\n') : normalizedMod;
     } else {
       throw new Error('propose_edit requires either edits array or newContent');
     }
