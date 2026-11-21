@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Forge Demo - Voiceover Narration Script</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 20mm 18mm;
+  }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.6;
+    font-size: 11pt;
+    margin: 0;
+    padding: 0;
+  }
+  .header {
+    border-bottom: 2px solid #3b82f6;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  h1 {
+    font-size: 18pt;
+    color: #0f172a;
+    margin: 0 0 4px 0;
+    font-weight: 700;
+  }
+  .subtitle {
+    font-size: 10pt;
+    color: #64748b;
+    margin: 0;
+  }
+  .badge {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 9pt;
+    font-weight: 600;
+  }
+  .section {
+    margin-bottom: 18px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 16px;
+    page-break-inside: avoid;
+  }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 6px;
+  }
+  .section-title {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin: 0;
+  }
+  .timestamp {
+    font-size: 9pt;
+    font-weight: 600;
+    color: #0284c7;
+    background: #f0f9ff;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .speech {
+    font-size: 11pt;
+    color: #0f172a;
+    margin: 0;
+    white-space: pre-line;
+  }
+  .speech p {
+    margin: 0 0 10px 0;
+  }
+  .speech p:last-child {
+    margin-bottom: 0;
+  }
+  .prompt-quote {
+    background: #f8fafc;
+    border-left: 3px solid #3b82f6;
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-style: italic;
+    color: #334155;
+    font-size: 10.5pt;
+  }
+  .cue {
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 4px;
+  }
+  .footer {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 8.5pt;
+    color: #94a3b8;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Forge VS Code Extension &mdash; Voiceover Narration Script</h1>
+    <p class="subtitle">Spoken script for hackathon demonstration video (Word-for-word voiceover)</p>
+  </div>
+  <div>
+    <span class="badge">Target: 3:30 &bull; Max: 4:00</span>
+  </div>
+</div>
+
+<!-- Intro -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Introduction</span>
+    <span class="timestamp">0:00 &ndash; 0:15 (15s)</span>
+  </div>
+  <div class="cue">Spoken Text</div>
+  <div class="speech">
+    <p>&ldquo;Hello! In this demonstration, I will showcase <strong>Forge</strong> &mdash; an autonomous coding agent extension for VS Code powered by TrueForge.</p>
+    <p>Over the next three and a half minutes, we will cover three core capabilities: targeted inline diff editing, autonomous multi-file feature development with context budget management, and automated model resilience with transparent fallback.&rdquo;</p>
+  </div>
+</div>
+
+<!-- Task A -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Task A: Targeted Inline Code Editing</span>
+    <span class="timestamp">0:15 &ndash; 1:05 (50s)</span>
+  </div>
+  <div class="cue">Spoken Text</div>
+  <div class="speech">
+    <p>&ldquo;Starting with Task A: targeted inline code editing. Here in <code>helpers.py</code>, we have the <code>get_debug_flag</code> function. Currently, it only checks for &lsquo;0&rsquo;, &lsquo;false&rsquo;, and &lsquo;no&rsquo;. If we set <code>FLASK_DEBUG</code> to &lsquo;off&rsquo;, it still evaluates to True.</p>
+    <p>I select lines 28 to 34 and hit <code>Ctrl+Shift+I</code> to invoke Forge Inline Edit. I give it this instruction:</p>
+    <div class="prompt-quote">&lsquo;Treat the values &lsquo;off&rsquo; and &lsquo;n&rsquo; as false as well, case-insensitively, and update the docstring to list every value that is treated as false.&rsquo;</div>
+    <p>The inline agent analyzes the highlighted code range and computes a surgical unified diff. Forge does not overwrite the file &mdash; it stages hunks with CodeLens controls right above the code, allowing per-hunk inspection and review.</p>
+    <p>I click &lsquo;Accept All&rsquo;. The function and docstring are updated cleanly in-place without touching any other code.</p>
+    <p>Now verifying in the terminal with <code>FLASK_DEBUG</code> set to &lsquo;off&rsquo;: it outputs <strong>False</strong> &mdash; confirming the bug is resolved.&rdquo;</p>
+  </div>
+</div>
+
+<!-- Task B -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Task B: Multi-File Autonomous Feature Implementation</span>
+    <span class="timestamp">1:05 &ndash; 2:30 (85s)</span>
+  </div>
+  <div class="cue">Spoken Text</div>
+  <div class="speech">
+    <p>&ldquo;Moving to Task B: building a complete feature across multiple files autonomously.</p>
+    <p>I open the Forge Agent sidebar and submit our requirement:</p>
+    <div class="prompt-quote">&lsquo;Add a new built-in CLI command flask config that prints the loaded application&rsquo;s configuration as JSON, masking the values of any key containing SECRET, PASSWORD, TOKEN or KEY as &lsquo;***&rsquo;. It must appear in flask --help, be covered by a test, and be documented alongside the other built-in commands.&rsquo;</div>
+    <p>Immediately, Forge initiates its autonomous tool execution loop.</p>
+    <p>First, notice the <strong>Context Ledger</strong> at the top of the panel: the agent uses <code>note_context</code> to record <code>cli.py</code>, <code>test_cli.py</code>, and <code>cli.rst</code> with token estimates, keeping our prompt budget strictly optimized.</p>
+    <p>Then it proceeds through structured multi-file edits: implementing the Click command in <code>cli.py</code>, adding test coverage in <code>test_cli.py</code>, and documenting the command in <code>cli.rst</code>.</p>
+    <p>Switching to our browser at <code>localhost:8790/sessions</code>, we can see the live TrueForge session created by <code>forge-agent</code>, capturing the turn lifecycle and tool invocations.</p>
+    <p>Back in VS Code, we accept the staged proposals. Let&rsquo;s run the three verifications in the terminal:</p>
+    <p>First, running pytest: all <strong>58 tests pass</strong> &mdash; including the 3 new unit tests covering JSON serialization, key masking, and CLI registration.<br>
+    Second, running <code>flask config</code>: it outputs formatted JSON with sensitive keys like <code>SECRET_KEY</code> safely masked as three asterisks.<br>
+    Finally, running <code>flask --help</code>: the <code>config</code> command appears in the built-in commands list.&rdquo;</p>
+  </div>
+</div>
+
+<!-- Task C -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Task C: Model Resilience &amp; Automatic Fallback</span>
+    <span class="timestamp">2:30 &ndash; 3:25 (55s)</span>
+  </div>
+  <div class="cue">Spoken Text</div>
+  <div class="speech">
+    <p>&ldquo;Finally, Task C demonstrates Resilience and Model Fallback.</p>
+    <p>In TrueForge, I deliberately switch the primary agent <code>forge-inline</code> to an unauthenticated model. This simulates an upstream model outage or severe rate-limiting.</p>
+    <p>Now returning to VS Code, I trigger inline edit with <code>Ctrl+Shift+I</code> and send a prompt:</p>
+    <div class="prompt-quote">&lsquo;Add a comment explaining what this function does.&rsquo;</div>
+    <p>When the primary agent fails to respond within 15 seconds, Forge detects the failure automatically. Notice the warning notification appears: <em>&lsquo;Primary agent failed. Switched automatically to fallback agent.&rsquo;</em></p>
+    <p>Crucially, the editor remained completely responsive throughout &mdash; no freezing, no modal blocks.</p>
+    <p>Running <code>git status</code> in the terminal confirms our workspace remains clean without corrupted files or half-baked edits.</p>
+    <p>I&rsquo;ll now restore the model in TrueForge back to Gemini.&rdquo;</p>
+  </div>
+</div>
+
+<!-- Conclusion -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Conclusion</span>
+    <span class="timestamp">3:25 &ndash; 3:40 (15s)</span>
+  </div>
+  <div class="cue">Spoken Text</div>
+  <div class="speech">
+    <p>&ldquo;To conclude: Forge delivers surgical inline diff reviews, autonomous multi-file development with context budgeting, and transparent fallback resilience &mdash; all integrated natively into VS Code using TrueForge.</p>
+    <p>Thank you!&rdquo;</p>
+  </div>
+</div>
+
+<div class="footer">
+  Forge VS Code Extension &bull; TrueForge Hackathon &bull; Techfest IIT Bombay
+</div>
+
+</body>
+</html>
