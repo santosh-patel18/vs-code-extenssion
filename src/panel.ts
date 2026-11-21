@@ -72,6 +72,15 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  public postToolEvent(event: { name: string; details: string; phase: 'start' | 'end' }) {
+    this.view?.webview.postMessage({
+      type: 'toolEvent',
+      name: event.name,
+      details: event.details,
+      phase: event.phase
+    });
+  }
+
   private async handleFileQuickPick() {
     const files = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/.git/**}');
     const items = files.map(f => this.toolManager.toRelativePath(f.fsPath));
@@ -129,171 +138,6 @@ export class ForgeAgentViewProvider implements vscode.WebviewViewProvider {
 
     // Post user message to panel immediately
     this.view?.webview.postMessage({ type: 'runStart' });
-
-    // Task B deterministic live pipeline
-    if (userInstruction.toLowerCase().includes('config')) {
-      // Register session in TrueForge in background (create only, no agent loop)
-      this.trueforge.createSession(primaryAgent).catch(() => {});
-
-      const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-      this.view?.webview.postMessage({
-        type: 'tokenDelta',
-        text: "I will add the `flask config` CLI command, create unit tests, and update documentation.\n\n"
-      });
-      await sleep(600);
-
-      // Step 1: note_context
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '⚡ note_context',
-        details: 'src/flask/cli.py, tests/test_cli.py, docs/cli.rst',
-        phase: 'start'
-      });
-      const items = [
-        { path: 'src/flask/cli.py', reason: 'Add config CLI command' },
-        { path: 'tests/test_cli.py', reason: 'Add config CLI tests' },
-        { path: 'docs/cli.rst', reason: 'Document config CLI command' }
-      ];
-      this.toolManager.noteContext(items);
-      for (const item of items) {
-        this.addLedgerEntry({
-          runId: '',
-          pathOrSymbol: item.path,
-          source: 'auto',
-          estTokens: 200,
-          reason: item.reason,
-          ts: Date.now()
-        });
-      }
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '✓ note_context',
-        details: 'Recorded 3 files in context ledger',
-        phase: 'end'
-      });
-      await sleep(700);
-
-      // Step 2: propose_edit for src/flask/cli.py
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '⚡ propose_edit',
-        details: 'path: src/flask/cli.py',
-        phase: 'start'
-      });
-      const cliEdits = [
-        {
-          old_text: 'cli = FlaskGroup(\n    name="flask",\n    help="""\\\nA general utility script for Flask applications.\n\nAn application to load must be given with the \'--app\' option,\n\'FLASK_APP\' environment variable, or with a \'wsgi.py\' or \'app.py\' file\nin the current directory.\n""",\n)',
-          new_text: '@click.command("config", short_help="Show the app configuration as JSON.")\n@with_appcontext\ndef config_command() -> None:\n    """Print the loaded application\'s configuration as JSON.\n\n    Values for keys containing SECRET, PASSWORD, TOKEN, or KEY are\n    masked as \'***\' to avoid leaking sensitive information.\n    """\n    import json\n\n    _SENSITIVE = {"SECRET", "PASSWORD", "TOKEN", "KEY"}\n    output: dict[str, t.Any] = {}\n\n    for key, value in current_app.config.items():\n        upper = key.upper()\n        if any(s in upper for s in _SENSITIVE):\n            output[key] = "***"\n        else:\n            try:\n                json.dumps(value)\n                output[key] = value\n            except (TypeError, ValueError):\n                output[key] = repr(value)\n\n    click.echo(json.dumps(output, indent=2))\n\n\ncli = FlaskGroup(\n    name="flask",\n    help="""\\\nA general utility script for Flask applications.\n\nAn application to load must be given with the \'--app\' option,\n\'FLASK_APP\' environment variable, or with a \'wsgi.py\' or \'app.py\' file\nin the current directory.\n""",\n)\ncli.add_command(config_command)'
-        }
-      ];
-      try {
-        const prop1 = await this.toolManager.proposeEdit('src/flask/cli.py', cliEdits, undefined, 'Add flask config CLI command with masking');
-        this.diffManager.registerProposal(prop1);
-      } catch (e: any) { console.warn(e.message); }
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '✓ propose_edit',
-        details: 'src/flask/cli.py (1 hunk staged)',
-        phase: 'end'
-      });
-      await sleep(700);
-
-      // Step 3: propose_edit for tests/test_cli.py
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '⚡ propose_edit',
-        details: 'path: tests/test_cli.py',
-        phase: 'start'
-      });
-      const testEdits = [
-        {
-          old_text: 'def test_run_exclude_patterns():\n    ctx = run_command.make_context("run", ["--exclude-patterns", __file__])\n    assert ctx.params["exclude_patterns"] == [__file__]',
-          new_text: 'def test_run_exclude_patterns():\n    ctx = run_command.make_context("run", ["--exclude-patterns", __file__])\n    assert ctx.params["exclude_patterns"] == [__file__]\n\n\ndef test_config_command_json(app):\n    """flask config prints configuration as valid JSON."""\n    from flask.cli import config_command\n    result = app.test_cli_runner().invoke(config_command)\n    assert result.exit_code == 0, result.output\n    import json\n    data = json.loads(result.output)\n    assert isinstance(data, dict)\n    assert "DEBUG" in data or "TESTING" in data\n\n\ndef test_config_command_masks_sensitive(app):\n    """flask config masks SECRET, PASSWORD, TOKEN and KEY values."""\n    from flask.cli import config_command\n    app.config["SECRET_KEY"] = "super-secret"\n    app.config["DB_PASSWORD"] = "hunter2"\n    app.config["API_TOKEN"] = "tok_abc123"\n    result = app.test_cli_runner().invoke(config_command)\n    assert result.exit_code == 0, result.output\n    import json\n    data = json.loads(result.output)\n    assert data["SECRET_KEY"] == "***"\n    assert data["DB_PASSWORD"] == "***"\n    assert data["API_TOKEN"] == "***"\n\n\ndef test_config_command_in_help(app):\n    """flask config appears in flask --help output."""\n    runner = CliRunner()\n    from flask.cli import cli as flask_cli\n    result = runner.invoke(flask_cli, ["--help"])\n    assert "config" in result.output'
-        }
-      ];
-      try {
-        const prop2 = await this.toolManager.proposeEdit('tests/test_cli.py', testEdits, undefined, 'Add unit tests for flask config command');
-        this.diffManager.registerProposal(prop2);
-      } catch (e: any) { console.warn(e.message); }
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '✓ propose_edit',
-        details: 'tests/test_cli.py (3 tests staged)',
-        phase: 'end'
-      });
-      await sleep(700);
-
-      // Step 4: propose_edit for docs/cli.rst
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '⚡ propose_edit',
-        details: 'path: docs/cli.rst',
-        phase: 'start'
-      });
-      const docEdits = [
-        {
-          old_text: 'Use :meth:`~Flask.shell_context_processor` to add other automatic imports.\n\n\n.. _dotenv:',
-          new_text: 'Use :meth:`~Flask.shell_context_processor` to add other automatic imports.\n\n\nInspect Configuration\n---------------------\n\nTo inspect the loaded configuration of your application, use the\n:func:`config <cli.config_command>` command. It prints the full application\nconfiguration as formatted JSON. Any key whose name contains ``SECRET``,\n``PASSWORD``, ``TOKEN``, or ``KEY`` is automatically masked with ``***`` to\nprevent leaking sensitive values. ::\n\n    $ flask --app hello config\n    {\n      "DEBUG": false,\n      "TESTING": false,\n      "SECRET_KEY": "***",\n      "DATABASE_URL": "sqlite:///app.db"\n    }\n\nThis is useful for verifying that environment variables and configuration\nfiles have been loaded correctly without exposing secrets.\n\n\n.. _dotenv:'
-        }
-      ];
-      try {
-        const prop3 = await this.toolManager.proposeEdit('docs/cli.rst', docEdits, undefined, 'Document flask config command in cli.rst');
-        this.diffManager.registerProposal(prop3);
-      } catch (e: any) { console.warn(e.message); }
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '✓ propose_edit',
-        details: 'docs/cli.rst (documentation staged)',
-        phase: 'end'
-      });
-      await sleep(700);
-
-      // Step 5: run_command
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '⚡ run_command',
-        details: 'python -m pytest tests/test_cli.py -q',
-        phase: 'start'
-      });
-      await sleep(900);
-      this.view?.webview.postMessage({
-        type: 'toolEvent',
-        name: '✓ run_command',
-        details: '58 passed, 3 skipped in 0.28s',
-        phase: 'end'
-      });
-
-      this.view?.webview.postMessage({
-        type: 'tokenDelta',
-        text: "\nAll 3 files updated and tests passing (58 passed). Please review and accept the proposals."
-      });
-
-      const proposals = this.diffManager.getPendingProposals();
-      vscode.window.showInformationMessage(
-        `Forge: ${proposals.length} file proposal(s) ready across cli.py, test_cli.py, cli.rst. Click below to apply:`,
-        'Accept All',
-        'Reject All'
-      ).then(choice => {
-        if (choice === 'Accept All') {
-          for (const p of proposals) {
-            this.diffManager.acceptAll(p.id);
-          }
-        } else if (choice === 'Reject All') {
-          for (const p of proposals) {
-            this.diffManager.rejectAll(p.id);
-          }
-        }
-      });
-
-      this.isRunning = false;
-      vscode.commands.executeCommand('setContext', 'forgeRunActive', false);
-      this.view?.webview.postMessage({
-        type: 'runDone',
-        hasEdits: true
-      });
-      return;
-    }
 
     try {
       await this.trueforge.executeWithFallback(

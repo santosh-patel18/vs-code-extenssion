@@ -51,6 +51,11 @@ export async function activate(context: vscode.ExtensionContext) {
     panelProvider.addLedgerEntry(entry);
   });
 
+  // Connect live MCP tool execution events to Webview UI
+  mcpServer.onToolEvent((event) => {
+    panelProvider.postToolEvent(event);
+  });
+
   // Startup ping check
   trueforgeClient.ping().then((isAlive) => {
     if (!isAlive) {
@@ -106,34 +111,9 @@ export async function activate(context: vscode.ExtensionContext) {
               `IMPORTANT: Call propose_edit with path='${filePath}'. Either provide the edits array with exact old_text and new_text for get_debug_flag, or the modified content in content field. Do not output conversational text.`;
 
             const fallbackAgentName = config.get<string>('agent.fallback', 'forge-fallback');
-            try {
-              await trueforgeClient!.executeWithFallback(inlineAgentName, fallbackAgentName, prompt, (_evt) => {
-                // Tool calls handled by MCP server in mcpServer.ts
-              });
-            } catch (err: any) {
-              console.warn('[Forge] TrueForge inline edit note:', err.message);
-            }
-
-            // Fail-safe: if model failed or was throttled, ensure Task A proposal is reliably staged (only for Task A instructions)
-            const isTaskA = instruction.toLowerCase().includes('off') || instruction.toLowerCase().includes('false') || instruction.toLowerCase().includes('debug');
-            if (diffManager.getPendingProposals().length === 0 && filePath.includes('helpers.py') && isTaskA) {
-              const edits = [
-                {
-                  old_text: 'def get_debug_flag() -> bool:\n    """Get whether debug mode should be enabled for the app, indicated by the\n    :envvar:`FLASK_DEBUG` environment variable. The default is ``False``.\n    """\n    val = os.environ.get("FLASK_DEBUG")\n    return bool(val and val.lower() not in {"0", "false", "no"})',
-                  new_text: 'def get_debug_flag() -> bool:\n    """Get whether debug mode should be enabled for the app, indicated by the\n    :envvar:`FLASK_DEBUG` environment variable. The default is ``False``.\n    Values like \'0\', \'false\', \'no\', \'off\', and \'n\' are considered false.\n    """\n    val = os.environ.get("FLASK_DEBUG")\n    return bool(val and val.lower() not in {"0", "false", "no", "off", "n"})'
-                }
-              ];
-              const proposal = await toolManager.proposeEdit(filePath, edits, undefined, "Treat 'off' and 'n' as false in get_debug_flag");
-              diffManager.registerProposal(proposal);
-              vscode.window.showInformationMessage(
-                `Forge: ${proposal.hunks.length} change(s) ready in ${proposal.filePath}. Use [Accept Hunk] / [Reject Hunk] above the code or click below:`,
-                'Accept All',
-                'Reject All'
-              ).then(choice => {
-                if (choice === 'Accept All') diffManager.acceptAll(proposal.id);
-                else if (choice === 'Reject All') diffManager.rejectAll(proposal.id);
-              });
-            }
+            await trueforgeClient!.executeWithFallback(inlineAgentName, fallbackAgentName, prompt, (_evt) => {
+              // Tool calls handled by MCP server in mcpServer.ts
+            });
           } catch (err: any) {
             vscode.window.showErrorMessage(`Forge inline edit note: ${err.message}`);
           }

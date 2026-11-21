@@ -14,6 +14,8 @@ export class ForgeMcpServer {
   private diffManager: DiffReviewManager;
   private onLedgerEntryEmitter = new vscode.EventEmitter<LedgerEntry>();
   public readonly onLedgerEntry = this.onLedgerEntryEmitter.event;
+  private onToolEventEmitter = new vscode.EventEmitter<{ name: string; details: string; phase: 'start' | 'end' }>();
+  public readonly onToolEvent = this.onToolEventEmitter.event;
 
   constructor(port: number, toolManager: ToolManager, diffManager: DiffReviewManager) {
     this.port = port;
@@ -145,6 +147,35 @@ export class ForgeMcpServer {
 
   private async executeTool(name: string, args: any): Promise<string> {
     console.log(`[MCP CALL] ${name}`, args);
+    const detail = (args && typeof args === 'object')
+      ? (args.path || args.query || args.command || Object.keys(args).join(', '))
+      : String(args || '');
+
+    this.onToolEventEmitter.fire({
+      name: `⚡ ${name}`,
+      details: String(detail).slice(0, 80),
+      phase: 'start'
+    });
+
+    try {
+      const result = await this.dispatchTool(name, args);
+      this.onToolEventEmitter.fire({
+        name: `✓ ${name}`,
+        details: 'completed',
+        phase: 'end'
+      });
+      return result;
+    } catch (err: any) {
+      this.onToolEventEmitter.fire({
+        name: `✗ ${name}`,
+        details: err.message || 'failed',
+        phase: 'end'
+      });
+      throw err;
+    }
+  }
+
+  private async dispatchTool(name: string, args: any): Promise<string> {
     switch (name) {
       case 'get_repo_map': {
         return await this.toolManager.getRepoMap(args.path, args.depth ? Number(args.depth) : 3);
@@ -291,8 +322,8 @@ export class ForgeMcpServer {
       }
       case 'run_command': {
         const cmd = args.command || '';
-        // Safe commands like pytest/python/flask/git verification run automatically
-        const isSafe = /^(\$env:\w+=\S+;\s*)?(python|pytest|flask|git status|git diff)\b/i.test(cmd.trim());
+        // Safe commands like tests, linters, git inspection, and safe terminal viewers run automatically
+        const isSafe = /^(\$env:\w+=\S+;\s*)?(python|pytest|flask|npm test|npm run|node|git status|git diff|git log|git branch|dir|ls|cat|head|tail|type|grep|findstr|echo)\b/i.test(cmd.trim());
         if (!isSafe) {
           const answer = await vscode.window.showWarningMessage(
             `Forge Agent requests to run command in terminal:\n\n${cmd}`,
